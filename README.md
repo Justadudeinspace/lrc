@@ -2,7 +2,7 @@
   <img src="./docs/assets/lrc-logo-green.png" alt="LRC — Local Repo Compile" width="600">
 </p>
 
-# ⚙️ LRC — Local Repo Compile
+# ⚙️ LRC — Local Repo Compiler
 
 **LRC** (Local Repo Compiler) turns declarative `.lrc` schema files into complete, production-ready repositories. Version **v1.0.0-alpha.1** introduces a modular architecture, DAT audit integration, and enterprise security features such as template trust policies and GPG validation for imported schemas.
 
