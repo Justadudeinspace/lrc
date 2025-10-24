@@ -1,26 +1,25 @@
-"""
-LRC - Local Repo Compile
-Build local repositories from declarative text schemas.
-"""
+"""Local Repo Compiler public API."""
 
-__version__ = "0.2.1"
-__author__ = "Justadudeinspace"
-__email__ = "justadudeinspace@example.com"
-
-from .core import (
-    parse_schema,
-    realize,
-    get_default_output_dir,
-    print_platform_info,
-    do_bootstrap,
-    ParseError,
-)
+from __future__ import annotations
 
 __all__ = [
-    "parse_schema",
-    "realize", 
-    "get_default_output_dir",
-    "print_platform_info",
-    "do_bootstrap",
+    "__version__",
+    "Action",
+    "BuildPlan",
     "ParseError",
+    "compile_schema_path",
+    "do_bootstrap",
+    "get_default_output_dir",
+    "parse_schema",
+    "print_platform_info",
+    "realize",
+    "run_dat_audit",
 ]
+
+__version__ = "1.0.0-alpha.1"
+
+from .bootstrap import do_bootstrap
+from .compiler import BuildPlan, compile_schema_path, get_default_output_dir, print_platform_info
+from .generator import realize
+from .integration import run_dat_audit
+from .parser import Action, ParseError, parse_schema

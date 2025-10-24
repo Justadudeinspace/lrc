@@ -1,32 +1,27 @@
 [project]
 name = "lrc"
-version = "0.2.1"
+version = "1.0.0-alpha.1"
 description = "Local Repo Compile — build a repo from a declarative schema file"
 readme = "README.md"
 authors = [
     { name = "Justadudeinspace", email = "justadudeinspace@example.com" }
 ]
 license = { text = "MIT" }
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 keywords = ["scaffolding", "templates", "code-generation", "productivity"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 
-dependencies = [
-    "colorama>=0.4.6,<1.0",
-    "rich>=13.0.0,<15.0",
-    "python-magic>=0.4.27,<1.0",
-    "pathspec>=0.12.1,<1.0",
-]
+dependencies = []
 
 [project.optional-dependencies]
 dev = [
@@ -63,12 +58,7 @@ Repository = "https://github.com/Justadudeinspace/lrc"
 Documentation = "https://github.com/Justadudeinspace/lrc#readme"
 
 [project.scripts]
-lrc = "lrc.__main__:main"
-
-[project.entry-points."lrc_templates"]
-python-cli = "lrc.core:template_actions"
-node-cli = "lrc.core:template_actions"
-rust-cli = "lrc.core:template_actions"
+lrc = "lrc.main:main"
 
 [build-system]
 requires = ["setuptools>=65.0.0", "wheel"]
@@ -79,7 +69,7 @@ where = ["src"]
 
 [tool.black]
 line-length = 88
-target-version = ['py38']
+target-version = ['py39']
 include = '\.pyi?$'
 
 [tool.mypy]

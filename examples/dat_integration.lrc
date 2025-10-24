@@ -1,0 +1,27 @@
+# Project: LRC + DAT Demo
+# Description: Example pipeline demonstrating DAT auditing
+# Version: 1.0.0-alpha.1
+
+@set AUTHOR=Enterprise Team
+@set PKG=dat-demo
+
+src/
+  __init__.py
+  main.py <<PY
+  """Entry point for DAT integration smoke test."""
+
+  def main() -> None:
+      print("DAT audit ready")
+
+  if __name__ == "__main__":
+      main()
+PY
+
+README.md <<MD
+# LRC + DAT Demo
+
+This project illustrates how to run the DAT audit pipeline after LRC finishes building.
+
+* Configure `~/.config/lrc/dat_integration.json`
+* Execute `lrc examples/dat_integration.lrc -o ./build/dat --audit`
+MD

@@ -1,0 +1,8 @@
+# Project: demo-app
+# Description: Example project
+# Version: 0.1.0
+
+@set AUTHOR=Unit Tester
+
+/src
+  main.py -> print("demo")

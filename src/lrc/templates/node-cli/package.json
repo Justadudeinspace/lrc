@@ -1,0 +1,9 @@
+{
+  "name": "${PKG}",
+  "version": "${VERSION}",
+  "description": "${DESCRIPTION}",
+  "bin": {
+    "${PROJECT}": "bin/cli.js"
+  },
+  "author": "${AUTHOR}"
+}

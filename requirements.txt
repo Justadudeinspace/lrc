@@ -1,7 +1,1 @@
-# Core runtime dependencies for LRC
-# For development dependencies, see pyproject.toml [project.optional-dependencies]
-
-colorama>=0.4.6,<1.0
-rich>=13.0.0,<15.0
-python-magic>=0.4.27,<1.0
-pathspec>=0.12.1,<1.0
+# LRC runtime has no mandatory external dependencies.
