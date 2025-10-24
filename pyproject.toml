@@ -21,12 +21,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 
-dependencies = [
-    "colorama>=0.4.6,<1.0",
-    "rich>=13.0.0,<15.0",
-    "python-magic>=0.4.27,<1.0",
-    "pathspec>=0.12.1,<1.0",
-]
+dependencies = []
 
 [project.optional-dependencies]
 dev = [
@@ -63,12 +58,7 @@ Repository = "https://github.com/Justadudeinspace/lrc"
 Documentation = "https://github.com/Justadudeinspace/lrc#readme"
 
 [project.scripts]
-lrc = "lrc.__main__:main"
-
-[project.entry-points."lrc_templates"]
-python-cli = "lrc.core:template_actions"
-node-cli = "lrc.core:template_actions"
-rust-cli = "lrc.core:template_actions"
+lrc = "lrc.main:main"
 
 [build-system]
 requires = ["setuptools>=65.0.0", "wheel"]
