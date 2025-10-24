@@ -1,0 +1,546 @@
+# examples/schema_example.lrc
+# Project: my-awesome-project
+# Description: A template project demonstrating LRC features
+# Version: 1.0.0
+
+# ==================== VARIABLES ====================
+# Define variables that can be reused throughout the schema
+# Syntax: @set KEY=VALUE
+# Reference variables with ${KEY} in file paths and contents
+
+@set AUTHOR=Your Name Here
+@set EMAIL=your.email@example.com
+@set PROJECT_NAME=my-awesome-project
+@set DESCRIPTION=A fantastic project built with LRC
+@set YEAR=2025
+@set LICENSE=MIT
+@set PYTHON_VERSION=3.9
+
+# ==================== IGNORE PATTERNS ====================
+# Files/directories to ignore when generating the project
+# These won't be created even if referenced in the schema
+
+@ignore node_modules .venv __pycache__ .DS_Store *.tmp build dist
+
+# ==================== TEMPLATES ====================
+# Apply a pre-built template (python-cli, node-cli, rust-cli)
+# Templates create common project structures automatically
+
+@template python-cli
+
+# ==================== PROJECT STRUCTURE ====================
+# Create directory structure
+# Lines starting with "/" create directories at the root level
+# Lines ending with "/" create directories at current level
+
+/src
+/docs
+/tests
+/scripts
+/assets
+/examples
+
+# ==================== SOURCE CODE FILES ====================
+# Enter the /src directory (indentation defines nesting)
+/src
+  # Create an empty file
+  __init__.py
+  
+  # Create a file with inline content using "->"
+  version.py -> __version__ = "1.0.0"
+  
+  # Create a file with multi-line content using heredoc "<<"
+  main.py <<PY
+#!/usr/bin/env python3
+"""
+${PROJECT_NAME} - ${DESCRIPTION}
+"""
+
+def main():
+    print("Hello from ${PROJECT_NAME}!")
+    print("Created by ${AUTHOR}")
+
+if __name__ == "__main__":
+    main()
+PY
+  
+  # Set executable permissions on Unix-like systems
+  @chmod src/main.py +x
+  
+  # Create a subdirectory
+  utils/
+    __init__.py
+    helpers.py <<PY
+"""Utility functions for ${PROJECT_NAME}."""
+
+def greet_user(name: str) -> str:
+    \"\"\"Return a personalized greeting.\"\"\"
+    return f"Hello, {name}! Welcome to ${PROJECT_NAME}."
+
+def calculate_sum(a: float, b: float) -> float:
+    \"\"\"Calculate the sum of two numbers.\"\"\"
+    return a + b
+PY
+
+# ==================== DOCUMENTATION ====================
+/docs
+  README.md <<MD
+# ${PROJECT_NAME}
+
+${DESCRIPTION}
+
+## Features
+
+- Feature 1: Describe what your project does
+- Feature 2: List key functionality  
+- Feature 3: Highlight unique aspects
+
+## Installation
+
+\`\`\`bash
+# Clone the repository
+git clone <your-repo-url>
+cd ${PROJECT_NAME}
+
+# Set up virtual environment
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
+
+# Install in development mode
+pip install -e .
+\`\`\`
+
+## Usage
+
+\`\`\`bash
+# Run the main application
+python src/main.py
+
+# Or use the installed command
+${PROJECT_NAME}
+\`\`\`
+
+## Development
+
+See the scripts in the \`/scripts\` directory for development tools.
+
+## About This Template
+
+This project was generated using **LRC** (Local Repo Compile), a tool that creates projects from declarative schemas.
+
+### LRC Features Demonstrated:
+
+- **Variables**: Reusable values like \${AUTHOR}, \${PROJECT_NAME}
+- **Directives**: Special commands starting with @
+- **Heredocs**: Multi-line content blocks
+- **File Operations**: Creating files with different methods
+- **Permissions**: Setting executable flags
+- **Templates**: Pre-built project structures
+MD
+
+  # Include content from another file
+  @include ../partials/CHANGELOG.lrc
+
+# ==================== TESTING ====================
+/tests
+  __init__.py
+  
+  # Test files with example test cases
+  test_main.py <<PY
+\"\"\"Tests for the main module.\"\"\"
+
+from src.main import main
+
+def test_main_output(capsys):
+    \"\"\"Test that main function prints expected output.\"\"\"
+    main()
+    captured = capsys.readouterr()
+    assert "${PROJECT_NAME}" in captured.out
+
+def test_main_import():
+    \"\"\"Test that main can be imported.\"\"\"
+    from src.main import main
+    assert callable(main)
+PY
+
+  test_utils.py <<PY
+\"\"\"Tests for utility functions.\"\"\"
+
+from src.utils.helpers import greet_user, calculate_sum
+
+def test_greet_user():
+    \"\"\"Test the greet_user function.\"\"\"
+    result = greet_user("Alice")
+    assert "Alice" in result
+    assert "${PROJECT_NAME}" in result
+
+def test_calculate_sum():
+    \"\"\"Test the calculate_sum function.\"\"\"
+    assert calculate_sum(2, 3) == 5
+    assert calculate_sum(-1, 1) == 0
+    assert calculate_sum(0, 0) == 0
+PY
+
+# ==================== SCRIPTS ====================
+/scripts
+  # Development script with heredoc
+  dev.sh <<SH
+#!/usr/bin/env bash
+# Development script for ${PROJECT_NAME}
+
+echo "🚀 Starting ${PROJECT_NAME} development environment..."
+
+# Activate virtual environment if it exists
+if [ -d ".venv" ]; then
+    echo "Activating virtual environment..."
+    source .venv/bin/activate
+fi
+
+# Run the main script
+python src/main.py
+
+echo "✅ Development session complete!"
+SH
+  
+  # Make the script executable
+  @chmod scripts/dev.sh +x
+  
+  test.sh <<SH
+#!/usr/bin/env bash
+# Test script for ${PROJECT_NAME}
+
+echo "🧪 Running tests for ${PROJECT_NAME}..."
+
+# Run tests
+python -m pytest tests/ -v
+
+echo "✅ Tests completed!"
+SH
+  @chmod scripts/test.sh +x
+
+# ==================== ASSETS ====================
+/assets
+  # Copy files from external locations
+  # @copy <source_path> <destination_path>
+  @copy ../assets/logo.png assets/logo.png
+  
+  # Create asset subdirectories
+  icons/
+  images/
+
+# ==================== EXAMPLES ====================
+/examples
+  basic_usage.py <<PY
+\"\"\"Basic usage example for ${PROJECT_NAME}.\"\"\"
+
+from src.utils.helpers import greet_user, calculate_sum
+
+def demonstrate_features():
+    \"\"\"Show how to use the project's features.\"\"\"
+    
+    print("${PROJECT_NAME} - Usage Examples")
+    print("=" * 40)
+    
+    # Demonstrate greeting functionality
+    greeting = greet_user("World")
+    print(f"Greeting: {greeting}")
+    
+    # Demonstrate calculation functionality
+    result = calculate_sum(10, 20)
+    print(f"10 + 20 = {result}")
+    
+    print("\\n🎉 Examples completed!")
+
+if __name__ == "__main__":
+    demonstrate_features()
+PY
+
+  advanced_usage.py <<PY
+\"\"\"Advanced usage example for ${PROJECT_NAME}.\"\"\"
+
+# This file demonstrates more complex usage patterns
+# Add your advanced examples here
+
+class AdvancedDemo:
+    \"\"\"A class demonstrating advanced features.\"\"\"
+    
+    def __init__(self, name: str):
+        self.name = name
+    
+    def demonstrate(self):
+        \"\"\"Run the advanced demonstration.\"\"\"
+        print(f"Advanced demo for {self.name}")
+        # Add your advanced logic here
+
+if __name__ == "__main__":
+    demo = AdvancedDemo("${PROJECT_NAME}")
+    demo.demonstrate()
+PY
+
+# ==================== PROJECT CONFIGURATION FILES ====================
+# Project metadata and configuration
+
+.gitignore <<GIT
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+GIT
+
+LICENSE <<TXT
+${LICENSE} License
+
+Copyright (c) ${YEAR} ${AUTHOR}
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+TXT
+
+pyproject.toml <<TOML
+[project]
+name = "${PROJECT_NAME}"
+version = "1.0.0"
+description = "${DESCRIPTION}"
+readme = "README.md"
+requires-python = ">=${PYTHON_VERSION}"
+authors = [
+    { name = "${AUTHOR}", email = "${EMAIL}" }
+]
+keywords = ["template", "demo", "lrc"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+]
+
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]
+
+[project.scripts]
+${PROJECT_NAME} = "src.main:main"
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+TOML
+
+# ==================== LRC LEARNING GUIDE ====================
+LEARNING_GUIDE.md <<MD
+# LRC Learning Guide
+
+This project demonstrates all major features of **LRC** (Local Repo Compile). Here's how to use each feature:
+
+## 1. Variables
+
+Define reusable values with `@set` and reference them with `\${VARIABLE}`:
+
+\`\`\`bash
+# Define variables
+@set PROJECT_NAME=my-project
+@set AUTHOR=John Doe
+
+# Use variables
+README.md -> # \${PROJECT_NAME} by \${AUTHOR}
+\`\`\`
+
+## 2. File Creation Methods
+
+### Empty Files
+\`\`\`bash
+# Creates an empty file
+filename.py
+\`\`\`
+
+### Inline Content (Single Line)
+\`\`\`bash
+# Creates a file with one line of content
+config.json -> {"key": "value"}
+\`\`\`
+
+### Multi-line Content (Heredoc)
+\`\`\`bash
+# Creates a file with multiple lines
+script.py <<PY
+#!/usr/bin/env python3
+print("Hello World")
+print("Multi-line content")
+PY
+\`\`\`
+
+## 3. Directives
+
+Special commands that start with `@`:
+
+### @set
+Define variables for reuse.
+
+### @ignore  
+Prevent certain files/directories from being created.
+
+### @template
+Apply a pre-built project template.
+
+### @chmod
+Set file permissions (Unix-like systems).
+
+### @include
+Insert content from another file.
+
+### @copy
+Copy files from external locations.
+
+## 4. Directory Structure
+
+- **Absolute paths** (start with `/`): Create at project root
+- **Relative paths** (end with `/`): Create in current directory
+- **Indentation**: Defines nesting level
+
+## 5. Best Practices
+
+1. **Define variables first** for easy customization
+2. **Use descriptive names** for projects and variables
+3. **Include comprehensive documentation**
+4. **Add tests** for better code quality
+5. **Use heredocs** for multi-line content
+6. **Set executable permissions** on scripts
+
+## 6. Running LRC
+
+\`\`\`bash
+# Generate the project
+lrc schema_example.lrc
+
+# Generate with custom output directory
+lrc schema_example.lrc -o ./my-project
+
+# Preview without making changes (dry run)
+lrc schema_example.lrc --dry-run
+
+# Overwrite existing files
+lrc schema_example.lrc --force
+\`\`\`
+
+## Next Steps
+
+1. Customize the variables at the top of this file
+2. Modify file contents to match your project needs
+3. Add your own source code files
+4. Run \`lrc schema_example.lrc\` to generate your project
+5. Start developing!
+
+Happy coding! 🚀
+MD
+
+README.md <<MD
+# ${PROJECT_NAME}
+
+This project was generated using **LRC** (Local Repo Compile).
+
+## Quick Start
+
+1. **Customize this schema**:
+   - Edit the variables at the top of \`schema_example.lrc\`
+   - Modify file contents to match your project needs
+
+2. **Generate your project**:
+   \`\`\`bash
+   lrc schema_example.lrc
+   \`\`\`
+
+3. **Start developing**:
+   \`\`\`bash
+   cd ${PROJECT_NAME}
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -e .
+   \`\`\`
+
+## Project Structure
+
+\`\`\`
+${PROJECT_NAME}/
+├── src/           # Source code
+├── tests/         # Test suite
+├── docs/          # Documentation  
+├── scripts/       # Development scripts
+├── assets/        # Static assets
+├── examples/      # Usage examples
+├── pyproject.toml # Project configuration
+├── LICENSE        # License file
+└── README.md      # This file
+\`\`\`
+
+## Learn LRC
+
+See \`LEARNING_GUIDE.md\` for a comprehensive guide to LRC features and syntax.
+
+## License
+
+${LICENSE} License - see [LICENSE](LICENSE) for details.
+MD
+
+# ==================== END OF SCHEMA ====================
+# This schema demonstrates a complete, working project template
+# Customize the variables and file contents above, then run:
+#   lrc schema_example.lrc
+# to generate your own project!
+
+# For more LRC examples and documentation, visit:
+# https://github.com/Justadudeinspace/lrc

@@ -1,0 +1,363 @@
+#!/usr/bin/env python3
+"""
+lrc — Local Repo Compile
+Build a local repo from a declarative text schema.
+
+Cross-platform support for: Android/Termux, Android/Linux, Linux, WSL2, macOS, Windows
+
+Schema example (repo_example.lrc):
+
+# Project: myapp
+# Description: Minimal Python CLI
+# Version: 0.1.0
+
+@set AUTHOR=Justadudeinspace
+@template python-cli
+/src
+  main.py -> print("Hello ${AUTHOR}")
+  utils.py
+/docs
+  README.md <<EOF
+# MyApp CLI
+Author: ${AUTHOR}
+EOF
+/tests
+  test_main.py
+.gitignore -> __pycache__/
+requirements.txt -> requests
+@chmod src/main.py +x
+@ignore node_modules .venv
+
+Usage:
+  lrc repo_example.lrc
+  lrc repo_example.lrc -o ./outdir
+  lrc repo_example.lrc --dry-run
+  lrc repo_example.lrc -f  # overwrite existing files
+  lrc --bootstrap          # install to ~/.local/bin (or Termux bin) and wire PATH
+
+Options:
+  -n, --dry-run    Preview actions; do not write.
+  -f, --force      Overwrite files if they already exist.
+  -o, --out DIR    Output root. Defaults to "./<ProjectName>" if present, else platform default.
+  -v, --verbose    Extra logs.
+  -b, --bootstrap  Install lrc into user bin and persist PATH.
+  --version        Show version info.
+
+Notes:
+- Indentation defines nesting (spaces). Deeper indent = child of previous directory.
+- Lines starting with "#" are comments/metadata. Recognized keys: "Project", "Description", "Version".
+- Lines starting with "@" are directives (tags). See below.
+- Absolute sections begin with "/" (e.g., "/src").
+- "name -> CONTENT" creates a file with inline one-line content.
+- "name <<EOF" ... "EOF" creates a file with multi-line content (heredoc; custom delimiter supported).
+- "name" (without arrow) creates an empty file.
+- Directories end with "/" (e.g., "assets/").
+- Variables: use @set KEY=VALUE, then reference with ${KEY} in file paths and contents.
+"""
+
+from __future__ import annotations
+import argparse
+import sys
+import os
+from pathlib import Path
+from typing import List, Optional, Dict
+
+# Import from the package
+try:
+    from lrc.core import (
+        parse_schema, 
+        realize, 
+        get_default_output_dir, 
+        print_platform_info,
+        do_bootstrap,
+        ParseError,
+        __version__
+    )
+except ImportError:
+    # Fallback to direct import for development
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent / 'src'))
+    from lrc.core import (
+        parse_schema, 
+        realize, 
+        get_default_output_dir, 
+        print_platform_info,
+        do_bootstrap,
+        ParseError,
+        __version__
+    )
+
+
+def extract_project_metadata(schema_text: str) -> dict:
+    """Extract project metadata from schema comments."""
+    metadata = {
+        "Project": None,
+        "Description": None, 
+        "Version": None
+    }
+    
+    for line in schema_text.splitlines():
+        line = line.strip()
+        if line.startswith("#"):
+            # Remove comment markers and clean up
+            content = line.lstrip("#").strip()
+            for key in metadata.keys():
+                if content.lower().startswith(f"{key.lower()}:"):
+                    metadata[key] = content.split(":", 1)[1].strip()
+                    break
+                    
+    return metadata
+
+
+def safe_read_schema(schema_path: Path) -> str:
+    """Safely read schema file with proper error handling."""
+    try:
+        return schema_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        # Try other common encodings
+        for encoding in ['utf-8', 'latin-1', 'cp1252']:
+            try:
+                return schema_path.read_text(encoding=encoding)
+            except UnicodeDecodeError:
+                continue
+        raise ValueError(f"Cannot decode schema file: {schema_path}")
+    except Exception as e:
+        raise ValueError(f"Cannot read schema file {schema_path}: {e}")
+
+
+def validate_output_directory(out_dir: Path, force: bool = False) -> bool:
+    """Validate that output directory is safe and writable."""
+    try:
+        # Check if directory exists and has content
+        if out_dir.exists() and any(out_dir.iterdir()):
+            if not force:
+                print(f"[WARNING] Output directory '{out_dir}' exists and is not empty")
+                print("  Use --force to overwrite files, or choose a different directory with -o")
+                return False
+            else:
+                print(f"[INFO] Output directory '{out_dir}' exists, --force enabled")
+        return True
+    except Exception as e:
+        print(f"[ERROR] Cannot access output directory '{out_dir}': {e}")
+        return False
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    """Main CLI entry point with enhanced error handling and user experience."""
+    
+    parser = argparse.ArgumentParser(
+        prog="lrc",
+        description="Local Repo Compile — build a repo from a declarative schema file. Cross-platform.",
+        epilog="""
+Examples:
+  lrc schema.lrc                 # Generate project
+  lrc schema.lrc -o ./myproject  # Custom output directory  
+  lrc schema.lrc --dry-run       # Preview only
+  lrc schema.lrc --force         # Overwrite existing
+  lrc --bootstrap                # Install system-wide
+
+Schema Language:
+  # Project: Name              # Metadata comments
+  @set VAR=value              # Define variables
+  dir/                        # Create directory
+  file.txt -> content         # Inline file content
+  file.txt <<EOF              # Heredoc multi-line content
+  ...content...
+  EOF
+  /absolute/path              # Absolute directory
+  @template python-cli        # Apply template
+  @chmod script.py +x         # Set permissions
+  @ignore pattern             # Ignore files
+
+Templates: python-cli, node-cli, rust-cli
+Platforms: Linux, macOS, Windows, WSL2, Android/Termux
+        """,
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    
+    parser.add_argument(
+        "schema", 
+        nargs="?", 
+        help="Path to schema file (e.g., myproject.lrc)"
+    )
+    
+    parser.add_argument(
+        "-o", "--out", 
+        help="Output root directory (default: platform-appropriate location)"
+    )
+    
+    parser.add_argument(
+        "-n", "--dry-run", 
+        action="store_true",
+        help="Preview actions without writing"
+    )
+    
+    parser.add_argument(
+        "-f", "--force", 
+        action="store_true",
+        help="Overwrite files if they exist"
+    )
+    
+    parser.add_argument(
+        "-v", "--verbose", 
+        action="store_true",
+        help="Verbose output"
+    )
+    
+    parser.add_argument(
+        "-b", "--bootstrap", 
+        action="store_true",
+        help="Install lrc into user bin and wire PATH"
+    )
+    
+    parser.add_argument(
+        "--platform-info",
+        action="store_true", 
+        help="Show detailed platform information"
+    )
+    
+    parser.add_argument(
+        "--version", 
+        action="version", 
+        version=f"lrc {__version__}"
+    )
+
+    # Parse arguments
+    if argv is None:
+        argv = sys.argv[1:]
+    args = parser.parse_args(argv)
+
+    # Handle bootstrap command
+    if args.bootstrap:
+        try:
+            do_bootstrap(sys.argv[0], verbose=args.verbose)
+            print("[SUCCESS] lrc installed successfully!")
+            print("[INFO] You may need to restart your terminal or run: source ~/.bashrc")
+            return 0
+        except Exception as e:
+            print(f"[ERROR] Bootstrap failed: {e}")
+            if args.verbose:
+                import traceback
+                traceback.print_exc()
+            return 1
+
+    # Handle platform info
+    if args.platform_info:
+        print_platform_info(verbose=True)
+        return 0
+
+    # Validate schema argument
+    if not args.schema:
+        parser.print_help()
+        print("\n[ERROR] No schema file specified")
+        print("[INFO]  Example: lrc myproject.lrc")
+        return 2
+
+    # Read and validate schema file
+    schema_path = Path(args.schema)
+    if not schema_path.exists():
+        print(f"[ERROR] Schema file not found: {schema_path}")
+        print("[INFO]  Check the file path and try again")
+        return 2
+
+    try:
+        schema_text = safe_read_schema(schema_path)
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        return 2
+
+    # Extract project metadata for better defaults
+    metadata = extract_project_metadata(schema_text)
+    project_name = metadata["Project"]
+
+    # Determine output directory
+    if args.out:
+        out_root = Path(args.out).resolve()
+    else:
+        out_root = get_default_output_dir(project_name).resolve()
+
+    # Validate output directory
+    if not validate_output_directory(out_root, args.force):
+        return 1
+
+    # Platform info for debugging
+    if args.verbose:
+        print_platform_info(verbose=True)
+        print(f"[CONFIG] Schema: {schema_path}")
+        print(f"[CONFIG] Output: {out_root}")
+        print(f"[CONFIG] Project: {project_name or 'Unnamed'}")
+        print(f"[CONFIG] Dry run: {args.dry_run}")
+        print(f"[CONFIG] Force: {args.force}")
+
+    try:
+        # Parse schema
+        base_dir = schema_path.parent
+        actions, meta, vars_ = parse_schema(schema_text, out_root, base_dir, args.verbose)
+        
+        # Show project information
+        print("\n" + "="*50)
+        if meta.get("Project"):
+            print(f"🏗️   PROJECT: {meta['Project']}")
+        if meta.get("Description"):
+            print(f"📝  {meta['Description']}")
+        if meta.get("Version"):
+            print(f"🏷️   VERSION: {meta['Version']}")
+        print(f"📂  OUTPUT: {out_root}")
+        print(f"⚡  ACTIONS: {len(actions)}")
+        print("="*50)
+
+        # Show dry run warning
+        if args.dry_run:
+            print("\n🚧 DRY RUN MODE - No files will be written")
+            print("   Remove --dry-run to actually create files\n")
+
+        # Execute actions
+        success = realize(actions, out_root, args.dry_run, args.force, args.verbose)
+
+        if success:
+            if args.dry_run:
+                print(f"\n✅ DRY RUN COMPLETED")
+                print(f"   Would create {len(actions)} actions")
+                print(f"   Output: {out_root}")
+            else:
+                print(f"\n✅ PROJECT GENERATED SUCCESSFULLY")
+                print(f"   Created {len(actions)} items")
+                print(f"   Location: {out_root}")
+                
+                # Show next steps
+                if project_name:
+                    print(f"\n🎯 NEXT STEPS:")
+                    print(f"   cd {out_root}")
+                    print(f"   Explore your new project!")
+                    
+        else:
+            print(f"\n❌ PROJECT GENERATION COMPLETED WITH ERRORS")
+            print(f"   Check output above for details")
+            return 1
+
+        return 0
+
+    except ParseError as e:
+        print(f"\n❌ SCHEMA PARSE ERROR:")
+        print(f"   {e}")
+        print(f"\n💡 TIPS:")
+        print(f"   - Check indentation (use spaces, not tabs)")
+        print(f"   - Verify variable syntax: @set VAR=value")
+        print(f"   - Check heredoc markers match")
+        return 1
+        
+    except KeyboardInterrupt:
+        print(f"\n⚠️  Operation cancelled by user")
+        return 1
+        
+    except Exception as e:
+        print(f"\n❌ UNEXPECTED ERROR: {e}")
+        if args.verbose:
+            print(f"\nDEBUG INFO:")
+            import traceback
+            traceback.print_exc()
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

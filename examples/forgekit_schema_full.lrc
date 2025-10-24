@@ -1,0 +1,1534 @@
+# =========================================================
+#  FORGEKIT — Built by LRC (Local Repo Compile)
+#  A developer's forge that generates its own source.
+#  Hidden message: "Everything you build builds you."
+#  Author: ${AUTHOR}
+#  Year: ${YEAR}
+#  License: ${LICENSE}
+#  Schema-Version: 1.1
+#  Generator: LRC v0.2.2
+#  Compatible-With: Python 3.8+
+# =========================================================
+
+# ==================== METADATA & VARIABLES ====================
+# Project: forgekit
+# Description: Portable developer forge toolkit for schema-driven repo creation
+# Version: 0.2.0
+# License: MIT
+
+@set AUTHOR=~JADIS | Justadudeinspace
+@set EMAIL=theoutervoid@outlook.com
+@set PKG=forgekit
+@set DESC=Portable developer forge toolkit for schema-driven repo creation
+@set YEAR=2025
+@set LICENSE=MIT
+@set PYTHON_VERSION=3.8
+@set PROJECT_URL=https://github.com/Justadudeinspace/forgekit
+@set SECRET_MSG=Everything you build builds you.
+@set CLI_NAME=forgekit
+@set FORGE_VERSION=0.2.0
+
+# Ignore common noise
+@ignore node_modules .venv __pycache__ .DS_Store *.tmp build dist *.egg-info .mypy_cache .pytest_cache
+
+# Demonstrate template usage (e.g., python-cli)
+@template python-cli
+
+# (Optional) include shared changelog content
+@include ../partials/CHANGELOG.lrc
+
+# ==================== PROJECT SKELETON ====================
+/src
+/docs
+/tests
+/scripts
+/assets
+/examples
+/bin
+
+# ==================== SOURCE CODE ====================
+/src
+  __init__.py <<PY
+"""${PKG} — ${DESC}"""
+
+__version__ = "${FORGE_VERSION}"
+__author__ = "${AUTHOR}"
+__email__ = "${EMAIL}"
+
+from .cli import main
+from .forge import forge, render_template, parse_simple_schema, realize
+from .utils import read_text, write_text, stringify_tree, validate_schema_file
+
+__all__ = [
+    "main", 
+    "forge", 
+    "render_template", 
+    "parse_simple_schema", 
+    "realize",
+    "read_text", 
+    "write_text", 
+    "stringify_tree",
+    "validate_schema_file"
+]
+PY
+
+  cli.py <<PY
+#!/usr/bin/env python3
+"""${PKG} — ${DESC}"""
+
+import argparse
+import sys
+from pathlib import Path
+from .__init__ import __version__
+from .forge import forge
+from .utils import stringify_tree, validate_schema_file
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="${CLI_NAME}", description="${DESC}")
+    parser.add_argument("schema", nargs="?", help="Schema file to compile")
+    parser.add_argument("-o", "--out", help="Output directory (default: ./<Project> or ./${PKG}_output)")
+    parser.add_argument("-n", "--dry-run", action="store_true", help="Preview actions; do not write")
+    parser.add_argument("-f", "--force", action="store_true", help="Overwrite existing files")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose logs")
+    parser.add_argument("--version", action="version", version=f"${PKG} {__version__}")
+    parser.add_argument("--platform-info", action="store_true", help="Show platform details")
+    
+    args = parser.parse_args(argv)
+
+    if args.platform_info:
+        import platform
+        import os
+        print(f"Platform: {platform.platform()}")
+        print(f"Python: {platform.python_version()}")
+        print(f"CWD: {Path.cwd()}")
+        print(f"Env: TERM={os.environ.get('TERM', '')}")
+        return 0
+
+    if not args.schema:
+        parser.print_help()
+        print(f"\nExamples:")
+        print(f"  {CLI_NAME} examples/quickstart.lrc")
+        print(f"  {CLI_NAME} schema.lrc -o ./myproject --dry-run")
+        return 2
+
+    schema_path = Path(args.schema)
+    
+    # Validate schema file
+    if not validate_schema_file(schema_path):
+        return 1
+
+    result = forge(
+        schema_path=schema_path,
+        out_dir=Path(args.out) if args.out else None,
+        dry_run=args.dry_run,
+        force=args.force,
+        verbose=args.verbose,
+    )
+
+    if args.verbose and result.get("tree"):
+        print("\n📁 Generated Structure:")
+        print(stringify_tree(result["tree"]))
+
+    if result.get("success"):
+        print(f"✅ Forge complete → {result['out_dir']}")
+        if not args.dry_run:
+            print(f"📦 Created {result['files_created']} files, {result['dirs_created']} directories")
+        return 0
+    else:
+        print(f"❌ Forge failed: {result.get('error', 'Unknown error')}")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())
+PY
+  @chmod src/cli.py +x
+
+  forge.py <<PY
+"""Forge core: parses simple LRC-like schema fragments at runtime."""
+
+from __future__ import annotations
+from pathlib import Path
+from typing import Dict, Any, List, Tuple, Optional
+import os
+import re
+
+def render_template(text: str, vars: Dict[str, str]) -> str:
+    """Render template variables in text."""
+    if not text:
+        return text
+    
+    def replace_var(match):
+        var_name = match.group(1)
+        return vars.get(var_name, match.group(0))
+    
+    pattern = r'\\$\\{([^}]+)\\}'
+    return re.sub(pattern, replace_var, text)
+
+def parse_simple_schema(text: str, vars: Dict[str, str]) -> List[Tuple[str, Optional[str]]]:
+    """
+    Minimal parser for lines like:
+      path.ext -> CONTENT
+      path.ext (empty)
+      dir/     (dir)
+      heredoc:
+        file.txt <<TAG
+        ...lines...
+        TAG
+        
+    Returns list of (path, content) where content=None means directory marker.
+    """
+    lines = text.splitlines()
+    i = 0
+    result = []
+    
+    while i < len(lines):
+        raw = lines[i]
+        s = raw.strip()
+        i += 1
+        
+        # Skip empty lines and comments
+        if not s or s.startswith("#"):
+            continue
+            
+        # Handle heredoc syntax
+        if "<<" in s and "->" not in s:
+            try:
+                left, tag = [p.strip() for p in s.split("<<", 1)]
+                path = render_template(left, vars)
+                tag = tag.strip() or "EOF"
+                buf = []
+                
+                # Collect heredoc content
+                while i < len(lines) and lines[i].strip() != tag:
+                    buf.append(lines[i])
+                    i += 1
+                    
+                # Skip the closing tag line
+                if i < len(lines):
+                    i += 1
+                    
+                content = "\\n".join(buf)
+                result.append((path, content))
+                continue
+                
+            except (ValueError, IndexError):
+                # Fallback: treat as regular file
+                path = render_template(s, vars)
+                result.append((path, ""))
+                continue
+        
+        # Directory marker
+        if s.endswith("/") and "->" not in s:
+            path = render_template(s[:-1], vars)
+            result.append((path + "/", None))
+            continue
+            
+        # Inline file content
+        if "->" in s:
+            try:
+                left, right = [p.strip() for p in s.split("->", 1)]
+                path = render_template(left, vars)
+                content = render_template(right, vars)
+                result.append((path, content))
+                continue
+            except (ValueError, IndexError):
+                # Fallback: treat as regular file
+                path = render_template(s, vars)
+                result.append((path, ""))
+                continue
+        
+        # Plain file (empty content)
+        path = render_template(s, vars)
+        result.append((path, ""))
+        
+    return result
+
+def realize(plan: List[Tuple[str, Optional[str]]], out_dir: Path, dry: bool = False, force: bool = False) -> Dict[str, Any]:
+    """Realize the parsed plan into actual filesystem operations."""
+    created_dirs = []
+    created_files = []
+    errors = []
+    
+    for path, content in plan:
+        try:
+            target = out_dir / path
+            
+            # Handle directories
+            if content is None or path.endswith("/"):
+                if dry:
+                    print(f"[DRY] mkdir -p {target}")
+                else:
+                    target.mkdir(parents=True, exist_ok=True)
+                created_dirs.append(str(target))
+                
+            # Handle files
+            else:
+                if target.exists() and not force:
+                    print(f"[SKIP] {target} exists (use --force)")
+                    continue
+                    
+                if dry:
+                    print(f"[DRY] write {target} ({len(content)} bytes)")
+                else:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_text(content, encoding="utf-8")
+                created_files.append(str(target))
+                
+        except Exception as e:
+            error_msg = f"Failed to create {path}: {e}"
+            errors.append(error_msg)
+            print(f"[ERROR] {error_msg}")
+    
+    return {
+        "dirs_created": created_dirs,
+        "files_created": created_files,
+        "errors": errors,
+        "success": len(errors) == 0
+    }
+
+def forge(schema_path: Path, out_dir: Optional[Path] = None, dry_run: bool = False, 
+          force: bool = False, verbose: bool = False) -> Dict[str, Any]:
+    """Main forge function to compile schema into filesystem structure."""
+    try:
+        # Read and validate schema
+        text = schema_path.read_text(encoding="utf-8")
+        
+        # Basic variable set
+        vars = {
+            "PROJECT": "${PKG}",
+            "AUTHOR": "${AUTHOR}",
+            "EMAIL": "${EMAIL}",
+            "DESC": "${DESC}",
+            "VERSION": "${FORGE_VERSION}",
+            "YEAR": "${YEAR}",
+            "LICENSE": "${LICENSE}",
+            "CLI_NAME": "${CLI_NAME}",
+            "SECRET_MSG": "${SECRET_MSG}",
+        }
+        
+        # Parse schema
+        plan = parse_simple_schema(text, vars)
+        
+        # Determine output directory
+        if out_dir is None:
+            out_dir = Path.cwd() / "${PKG}_output"
+        
+        if verbose:
+            print(f"[forge] Output directory: {out_dir}")
+            print(f"[forge] Plan items: {len(plan)}")
+            print(f"[forge] Dry run: {dry_run}")
+            print(f"[forge] Force: {force}")
+        
+        # Realize the plan
+        result = realize(plan, out_dir, dry=dry_run, force=force)
+        
+        # Build tree structure for display
+        tree = {}
+        for path in result["dirs_created"]:
+            tree[path] = "dir"
+        for path in result["files_created"]:
+            tree[path] = "file"
+        
+        return {
+            "out_dir": str(out_dir),
+            "tree": tree,
+            "files_created": len(result["files_created"]),
+            "dirs_created": len(result["dirs_created"]),
+            "errors": result["errors"],
+            "success": result["success"]
+        }
+        
+    except Exception as e:
+        return {
+            "out_dir": str(out_dir) if out_dir else "unknown",
+            "tree": {},
+            "files_created": 0,
+            "dirs_created": 0,
+            "errors": [str(e)],
+            "success": False
+        }
+PY
+
+  utils.py <<PY
+"""Utilities for I/O, validation, and pretty-printing."""
+
+from __future__ import annotations
+from pathlib import Path
+from typing import Dict, Any
+import os
+
+def read_text(path: Path) -> str:
+    """Read text from file with proper error handling."""
+    try:
+        return path.read_text(encoding="utf-8")
+    except Exception as e:
+        raise IOError(f"Cannot read file {path}: {e}")
+
+def write_text(path: Path, content: str) -> None:
+    """Write text to file with proper directory creation."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    except Exception as e:
+        raise IOError(f"Cannot write file {path}: {e}")
+
+def stringify_tree(tree: Dict[str, str]) -> str:
+    """Convert tree structure to readable string."""
+    if not tree:
+        return "(empty)"
+    
+    items = sorted(tree.items(), key=lambda kv: kv[0])
+    lines = []
+    
+    for path, kind in items:
+        indent_level = path.count("/") - 1
+        indent = "  " * max(0, indent_level)
+        
+        if kind == "dir":
+            icon = "📁"
+            name = Path(path).name + "/"
+        else:
+            icon = "📄"
+            name = Path(path).name
+            
+        lines.append(f"{indent}{icon} {name}")
+    
+    return "\\n".join(lines)
+
+def validate_schema_file(schema_path: Path) -> bool:
+    """Validate that schema file exists and is readable."""
+    if not schema_path.exists():
+        print(f"❌ Schema file not found: {schema_path}")
+        return False
+        
+    if not schema_path.is_file():
+        print(f"❌ Schema path is not a file: {schema_path}")
+        return False
+        
+    try:
+        # Quick read test
+        schema_path.read_text(encoding="utf-8")
+        return True
+    except Exception as e:
+        print(f"❌ Cannot read schema file: {e}")
+        return False
+
+def get_file_size(path: Path) -> int:
+    """Get file size in bytes."""
+    try:
+        return path.stat().st_size
+    except:
+        return 0
+
+def format_file_size(bytes: int) -> str:
+    """Format file size in human-readable format."""
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if bytes < 1024.0:
+            return f"{bytes:.1f} {unit}"
+        bytes /= 1024.0
+    return f"{bytes:.1f} TB"
+PY
+
+# ==================== DOCUMENTATION ====================
+/docs
+  README.md <<MD
+<p align="center">
+  <img src="../assets/logo.svg" width="120" />
+</p>
+
+<h1 align="center">FORGEKIT</h1>
+<p align="center"><em>${DESC}</em></p>
+
+<div align="center">
+
+![License](https://img.shields.io/badge/license-${LICENSE}-blue.svg)
+![Python](https://img.shields.io/badge/python-${PYTHON_VERSION}+-green.svg)
+![Version](https://img.shields.io/badge/version-${FORGE_VERSION}-orange.svg)
+
+</div>
+
+## 🚀 Features
+
+- **Schema → Repo** compilation in one command
+- **Simple syntax** with variables, heredocs, and directives
+- **Cross-platform** support (Linux/macOS/Windows/WSL2/Termux)
+- **Extensible core** with template rendering and filesystem operations
+- **Comprehensive tooling** with tests, docs, and build scripts
+
+## 📦 Installation
+
+### Development Setup
+\`\`\`bash
+# Clone and setup
+git clone ${PROJECT_URL}
+cd forgekit
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\\\\Scripts\\\\activate
+
+# Install in development mode
+pip install -e .
+
+# Or use the provided script
+./scripts/install-dev.sh
+\`\`\`
+
+### System Installation
+\`\`\`bash
+# Install via pip (when published)
+pip install forgekit
+\`\`\`
+
+## 🛠️ Usage
+
+### Basic Compilation
+\`\`\`bash
+# Generate project from schema
+${CLI_NAME} examples/quickstart.lrc
+
+# Custom output directory
+${CLI_NAME} schema.lrc -o ./myproject
+
+# Preview without writing (dry run)
+${CLI_NAME} schema.lrc --dry-run -v
+
+# Force overwrite existing files
+${CLI_NAME} schema.lrc --force
+\`\`\`
+
+### Schema Syntax
+\`\`\`bash
+# Comments and metadata
+# Project: My Project
+# Description: My description
+
+# Variables (used in templates)
+@set AUTHOR=Your Name
+
+# Directories
+/src
+/docs/
+
+# Files with inline content
+README.md -> # My Project
+
+# Files with heredoc content
+script.py <<PY
+#!/usr/bin/env python3
+print("Hello World")
+PY
+
+# Empty files
+config.json
+\`\`\`
+
+### CLI Reference
+\`\`\`bash
+${CLI_NAME} --help           # Show help
+${CLI_NAME} --version        # Show version
+${CLI_NAME} --platform-info  # Show system information
+\`\`\`
+
+## 🧪 Development
+
+\`\`\`bash
+# Run tests
+./scripts/test.sh
+
+# Build package
+./scripts/build.sh
+
+# Type checking
+python -m mypy src/ tests/
+
+# Code formatting
+python -m black src/ tests/
+\`\`\`
+
+## 📁 Project Structure
+
+\`\`\`
+forgekit/
+├── src/           # Source code
+│   ├── __init__.py
+│   ├── cli.py     # Command-line interface
+│   ├── forge.py   # Core compilation logic
+│   └── utils.py   # Utility functions
+├── tests/         # Test suite
+├── docs/          # Documentation
+├── scripts/       # Development scripts
+├── assets/        # Static assets
+├── examples/      # Example schemas
+└── bin/           # Binary helpers (reserved)
+\`\`\`
+
+## 🔧 API Reference
+
+### Core Functions
+
+\`\`\`python
+from forgekit import forge, render_template
+
+# Compile schema to filesystem
+result = forge(
+    schema_path="my_schema.lrc",
+    out_dir="./output",
+    dry_run=False,
+    force=False,
+    verbose=True
+)
+
+# Render templates with variables
+text = render_template("Hello ${NAME}", {"NAME": "World"})
+\`\`\`
+
+### Utilities
+\`\`\`python
+from forgekit import read_text, write_text, stringify_tree
+
+# File operations
+content = read_text(Path("file.txt"))
+write_text(Path("output.txt"), "content")
+
+# Tree visualization
+tree = {"src/": "dir", "src/main.py": "file"}
+print(stringify_tree(tree))
+\`\`\`
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: \`git checkout -b feature/new-feature\`
+3. Commit changes: \`git commit -am 'Add new feature'\`
+4. Push to branch: \`git push origin feature/new-feature\`
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the ${LICENSE} License - see the [LICENSE](../LICENSE) file for details.
+
+## 🎯 Easter Egg
+
+Open [EASTER_EGG.md](./EASTER_EGG.md) to discover the hidden message.
+
+> "*${SECRET_MSG}*"
+MD
+
+  EASTER_EGG.md <<MD
+# 🪞 Developer Easter Egg — The Self-Forging Forge
+
+> "*${SECRET_MSG}*"
+
+## The Reflection
+
+You built **ForgeKit** from a single schema using **LRC** (Local Repo Compile). 
+Now **ForgeKit** can generate its own demo projects, scripts, and documentation.
+
+The compiler is the lesson. The forge that builds itself teaches the deepest truth:
+
+> *Every tool you create changes you as a creator.*
+> *Every system you design reflects your understanding.*
+> *Every abstraction you build shapes how you think.*
+
+## The Cycle
+
+1. **LRC** compiles schemas into projects
+2. **ForgeKit** is born from such a schema  
+3. **ForgeKit** can now compile its own schemas
+4. The cycle continues...
+
+## The Message
+
+This isn't just about code generation. It's about:
+
+- **Meta-creation**: Tools that create tools
+- **Self-reference**: Systems that describe themselves
+- **Recursive improvement**: Each generation building upon the last
+
+You're not just building software—you're building the *capacity to build*.
+
+> *"We become what we behold. We shape our tools and then our tools shape us."* — Marshall McLuhan
+
+*Continue the cycle. Build something that builds you better.*
+MD
+
+  API_REFERENCE.md <<MD
+# API Reference
+
+## Command Line Interface
+
+### Basic Usage
+\`\`\`bash
+${CLI_NAME} schema.lrc                 # Compile schema
+${CLI_NAME} schema.lrc -o ./output     # Custom output directory
+${CLI_NAME} schema.lrc --dry-run -v    # Preview with verbose output
+${CLI_NAME} --help                     # Show help
+${CLI_NAME} --version                  # Show version
+${CLI_NAME} --platform-info            # Show system information
+\`\`\`
+
+### Options
+- \`schema\`: Path to schema file (required)
+- \`-o, --out\`: Output directory (default: ./${PKG}_output)
+- \`-n, --dry-run\`: Preview actions without writing
+- \`-f, --force\`: Overwrite existing files
+- \`-v, --verbose\`: Verbose output
+- \`--version\`: Show version information
+- \`--platform-info\`: Show platform details
+
+## Python API
+
+### Core Functions
+
+\`\`\`python
+def forge(
+    schema_path: Path,
+    out_dir: Optional[Path] = None,
+    dry_run: bool = False,
+    force: bool = False,
+    verbose: bool = False
+) -> Dict[str, Any]
+\`\`\`
+Compiles a schema file into filesystem structure.
+
+**Returns:**
+\`\`\`python
+{
+    "out_dir": str,           # Output directory path
+    "tree": Dict[str, str],   # Generated structure
+    "files_created": int,     # Number of files created
+    "dirs_created": int,      # Number of directories created  
+    "errors": List[str],      # List of error messages
+    "success": bool          # Whether operation succeeded
+}
+\`\`\`
+
+\`\`\`python
+def render_template(text: str, vars: Dict[str, str]) -> str
+\`\`\`
+Renders template variables in text.
+
+\`\`\`python
+def parse_simple_schema(text: str, vars: Dict[str, str]) -> List[Tuple[str, Optional[str]]]
+\`\`\`
+Parses schema text into file/directory plan.
+
+\`\`\`python
+def realize(plan: List[Tuple[str, Optional[str]]], out_dir: Path, dry: bool = False, force: bool = False) -> Dict[str, Any]
+\`\`\`
+Executes filesystem operations from plan.
+
+### Utility Functions
+
+\`\`\`python
+def read_text(path: Path) -> str
+def write_text(path: Path, content: str) -> None
+def stringify_tree(tree: Dict[str, str]) -> str
+def validate_schema_file(schema_path: Path) -> bool
+def get_file_size(path: Path) -> int
+def format_file_size(bytes: int) -> str
+\`\`\`
+
+## Schema Syntax
+
+### Basic Elements
+- **Comments**: Lines starting with \`#\`
+- **Variables**: \`@set NAME=value\`
+- **Directories**: Path ending with \`/\`
+- **Files**: Path without trailing slash
+
+### Content Types
+- **Empty files**: Just the filename
+- **Inline content**: \`file -> content\`
+- **Heredoc content**: \`file <<TAG\\n...content...\\nTAG\`
+
+### Example Schema
+\`\`\`bash
+# Project: Example
+# Description: Example schema
+
+@set AUTHOR=Developer
+
+/src/
+  main.py -> print("Hello ${AUTHOR}")
+  config.json <<JSON
+  {
+    "name": "example",
+    "version": "1.0.0"
+  }
+  JSON
+  empty.txt
+
+/docs/
+  README.md
+\`\`\`
+MD
+
+# ==================== TESTS ====================
+/tests
+  __init__.py
+
+  test_cli.py <<PY
+"""Test CLI functionality."""
+
+import subprocess
+import sys
+from pathlib import Path
+
+def run_cli(*args, cwd=None):
+    """Run CLI command and return result."""
+    return subprocess.run(
+        [sys.executable, "-m", "src.cli", *args],
+        capture_output=True, 
+        text=True, 
+        cwd=cwd
+    )
+
+def test_help():
+    """Test help command."""
+    r = run_cli("--help", cwd=Path(__file__).parent.parent)
+    assert r.returncode == 0
+    assert "usage" in r.stdout.lower()
+    assert "${CLI_NAME}" in r.stdout
+
+def test_version():
+    """Test version command."""
+    r = run_cli("--version", cwd=Path(__file__).parent.parent)
+    assert r.returncode == 0
+    assert "${PKG}" in r.stdout
+    assert "${FORGE_VERSION}" in r.stdout
+
+def test_platform_info():
+    """Test platform info command."""
+    r = run_cli("--platform-info", cwd=Path(__file__).parent.parent)
+    assert r.returncode == 0
+    assert "Platform" in r.stdout
+
+def test_no_schema():
+    """Test behavior when no schema is provided."""
+    r = run_cli(cwd=Path(__file__).parent.parent)
+    assert r.returncode == 2
+    assert "usage" in r.stdout.lower()
+PY
+
+  test_forge.py <<PY
+"""Test forge core functionality."""
+
+import pytest
+from pathlib import Path
+from src.forge import render_template, parse_simple_schema, realize
+from src.utils import stringify_tree, validate_schema_file
+
+def test_render_template():
+    """Test template rendering."""
+    # Basic variable substitution
+    s = render_template("Hello ${NAME}", {"NAME": "World"})
+    assert s == "Hello World"
+    
+    # Unknown variables remain unchanged
+    s = render_template("Hello ${UNKNOWN}", {"NAME": "World"})
+    assert s == "Hello ${UNKNOWN}"
+    
+    # Empty template
+    s = render_template("", {"NAME": "World"})
+    assert s == ""
+    
+    # None values
+    s = render_template("Test ${VAR}", {"VAR": None})
+    assert "None" in s
+
+def test_parse_simple_schema_basic():
+    """Test basic schema parsing."""
+    text = \"\"\"
+# Comment line
+a.txt -> hi
+subdir/
+b.txt
+\"\"\"
+    plan = parse_simple_schema(text, {})
+    
+    # Should parse all elements
+    assert len(plan) == 3
+    assert ("a.txt", "hi") in plan
+    assert ("subdir/", None) in plan
+    assert ("b.txt", "") in plan
+
+def test_parse_simple_schema_heredoc():
+    """Test heredoc parsing."""
+    text = \"\"\"
+config.json <<JSON
+{
+  "name": "test",
+  "value": 42
+}
+JSON
+empty.txt
+\"\"\"
+    plan = parse_simple_schema(text, {})
+    
+    assert len(plan) == 2
+    assert any("config.json" in path and "name" in content for path, content in plan if content)
+    assert any("empty.txt" in path and content == "" for path, content in plan)
+
+def test_parse_simple_schema_with_vars():
+    """Test schema parsing with variables."""
+    text = \"\"\"
+@set NAME=TestUser
+file.txt -> Hello ${NAME}
+\"\"\"
+    vars = {"NAME": "TestUser"}
+    plan = parse_simple_schema(text, vars)
+    
+    assert len(plan) == 1
+    path, content = plan[0]
+    assert path == "file.txt"
+    assert content == "Hello TestUser"
+
+def test_realize_dry_run(tmp_path):
+    """Test dry run realization."""
+    plan = [
+        ("test_dir/", None),
+        ("test_dir/file.txt", "content"),
+    ]
+    
+    result = realize(plan, tmp_path, dry=True)
+    
+    # Should not create actual files in dry run
+    assert not (tmp_path / "test_dir").exists()
+    assert not (tmp_path / "test_dir" / "file.txt").exists()
+    assert result["success"] is True
+
+def test_realize_actual_files(tmp_path):
+    """Test actual filesystem realization."""
+    plan = [
+        ("subdir/", None),
+        ("subdir/file.txt", "file content"),
+        ("empty.txt", ""),
+    ]
+    
+    result = realize(plan, tmp_path, dry=False, force=True)
+    
+    # Should create actual files
+    assert (tmp_path / "subdir").exists()
+    assert (tmp_path / "subdir" / "file.txt").exists()
+    assert (tmp_path / "empty.txt").exists()
+    
+    # Verify content
+    assert (tmp_path / "subdir" / "file.txt").read_text() == "file content"
+    assert (tmp_path / "empty.txt").read_text() == ""
+    
+    assert result["success"] is True
+    assert len(result["files_created"]) == 2
+    assert len(result["dirs_created"]) == 1
+
+def test_stringify_tree():
+    """Test tree stringification."""
+    tree = {
+        "src/": "dir",
+        "src/main.py": "file", 
+        "docs/": "dir",
+        "README.md": "file"
+    }
+    
+    result = stringify_tree(tree)
+    
+    assert "src/" in result
+    assert "main.py" in result
+    assert "docs/" in result
+    assert "README.md" in result
+    assert "📁" in result  # dir icon
+    assert "📄" in result  # file icon
+
+def test_validate_schema_file(tmp_path):
+    """Test schema file validation."""
+    # Valid file
+    valid_file = tmp_path / "valid.lrc"
+    valid_file.write_text("# Test schema")
+    
+    assert validate_schema_file(valid_file) is True
+    
+    # Non-existent file
+    fake_file = tmp_path / "nonexistent.lrc"
+    assert validate_schema_file(fake_file) is False
+    
+    # Directory instead of file
+    assert validate_schema_file(tmp_path) is False
+PY
+
+  conftest.py <<PY
+"""Pytest configuration and fixtures."""
+
+import pytest
+from pathlib import Path
+
+@pytest.fixture
+def sample_schema_content():
+    """Provide sample schema content for testing."""
+    return \"\"\"
+# Test Schema
+# Description: For testing purposes
+
+@set TEST_VAR=test_value
+
+/src/
+  main.py -> print("Hello ${TEST_VAR}")
+  utils/
+    helper.py
+
+/docs/
+  README.md <<MD
+# Test Project
+This is a test.
+MD
+\"\"\"
+
+@pytest.fixture
+def temp_schema_file(tmp_path, sample_schema_content):
+    """Create a temporary schema file for testing."""
+    schema_file = tmp_path / "test_schema.lrc"
+    schema_file.write_text(sample_schema_content)
+    return schema_file
+PY
+
+# ==================== SCRIPTS ====================
+/scripts
+  pre_build.sh <<SH
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "🔧 Pre-build hook: verifying environment..."
+echo "Python version:"
+python3 --version || echo "Python not found!"
+
+echo "Current directory:"
+pwd
+
+echo "Environment check complete."
+SH
+  @chmod scripts/pre_build.sh +x
+
+  post_build.sh <<SH
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "✨ Post-build hook: summarizing artifacts..."
+echo "Generated files:"
+find . -maxdepth 3 -type f -name "*.py" -o -name "*.md" -o -name "*.txt" -o -name "*.sh" | sort
+
+echo "Directory structure:"
+find . -maxdepth 3 -type d | sort
+
+echo "Build summary complete."
+SH
+  @chmod scripts/post_build.sh +x
+
+  install-dev.sh <<SH
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "🔧 Setting up ${PKG} development environment..."
+
+# Create virtual environment if it doesn't exist
+if [ ! -d ".venv" ]; then
+    echo "Creating virtual environment..."
+    python -m venv .venv
+fi
+
+# Activate virtual environment
+echo "Activating virtual environment..."
+source .venv/bin/activate
+
+# Install package in development mode
+echo "Installing ${PKG} in development mode..."
+pip install -e .
+
+# Install development dependencies
+echo "Installing development dependencies..."
+pip install pytest pytest-cov mypy black build
+
+echo "✅ Development environment ready!"
+echo ""
+echo "💡 Next steps:"
+echo "   source .venv/bin/activate"
+echo "   ${CLI_NAME} --help"
+echo "   ./scripts/test.sh"
+SH
+  @chmod scripts/install-dev.sh +x
+
+  test.sh <<SH
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "🧪 Running tests for ${PKG}..."
+
+# Run tests with coverage
+echo "Running pytest with coverage..."
+python -m pytest tests/ -v --cov=src --cov-report=term-missing
+
+# Type checking
+echo ""
+echo "📝 Running type checks..."
+python -m mypy src/ tests/ || echo "Type checking completed with warnings"
+
+# Code formatting check
+echo ""
+echo "🎨 Checking code formatting..."
+python -m black --check src/ tests/ || echo "Format check completed"
+
+echo ""
+echo "✅ Test suite completed!"
+SH
+  @chmod scripts/test.sh +x
+
+  build.sh <<SH
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "🔨 Building ${PKG}..."
+
+# Clean previous builds
+echo "Cleaning previous builds..."
+rm -rf dist/ build/ *.egg-info
+
+# Run pre-build hook
+if [ -f "scripts/pre_build.sh" ]; then
+    ./scripts/pre_build.sh
+fi
+
+# Build package
+echo "Building package..."
+python -m build
+
+# Run post-build hook  
+if [ -f "scripts/post_build.sh" ]; then
+    ./scripts/post_build.sh
+fi
+
+echo "✅ Build complete! Distribution files in dist/"
+echo ""
+echo "📦 Generated packages:"
+ls -la dist/
+SH
+  @chmod scripts/build.sh +x
+
+# ==================== ASSETS ====================
+/assets
+  logo.svg <<SVG
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <rect width="128" height="128" fill="#0b132b" rx="8"/>
+  <path d="M20 100 L64 20 L108 100 Z" fill="#5bc0be" stroke="#3a506b" stroke-width="2"/>
+  <circle cx="64" cy="64" r="10" fill="#ffffff"/>
+  <circle cx="64" cy="64" r="6" fill="#5bc0be"/>
+  <text x="64" y="118" text-anchor="middle" fill="#eeeeee" font-family="Arial, sans-serif" font-size="12" font-weight="bold">FORGEKIT</text>
+</svg>
+SVG
+
+  banner.txt <<TXT
+╔══════════════════════════════════════════════════════════════╗
+║                     F O R G E K I T                          ║
+║         Portable Developer Forge Toolkit v${FORGE_VERSION}         ║
+║                 "Everything you build builds you."           ║
+╚══════════════════════════════════════════════════════════════╝
+TXT
+
+# ==================== EXAMPLES ====================
+/examples
+  quickstart.lrc <<LRC
+# Quickstart Example
+# Description: Minimal example to test ForgeKit
+
+@set PROJECT_NAME=QuickstartProject
+@set AUTHOR=ForgeKitUser
+
+/output/
+  README.md -> # ${PROJECT_NAME}
+  Welcome to ${PROJECT_NAME} by ${AUTHOR}
+
+  main.py <<PY
+#!/usr/bin/env python3
+print("Hello from ${PROJECT_NAME}!")
+print("Created by ${AUTHOR}")
+PY
+
+  config/
+    settings.json <<JSON
+{
+  "project": "${PROJECT_NAME}",
+  "author": "${AUTHOR}",
+  "generated_by": "ForgeKit"
+}
+JSON
+LRC
+
+  demo_project.lrc <<LRC
+# Demo Project
+# Description: Comprehensive example showing all features
+
+@set PROJECT=DemoProject
+@set VERSION=1.0.0
+@set AUTHOR=ForgeKit Demo
+
+/demo/
+  /src/
+    __init__.py
+    main.py -> print("Hello from ${PROJECT} v${VERSION}")
+    
+    /utils/
+      helpers.py <<PY
+"""Utility functions for ${PROJECT}."""
+
+def greet(name):
+    return f"Hello, {name}!"
+
+def calculate(a, b):
+    return a + b
+PY
+
+  /docs/
+    README.md <<MD
+# ${PROJECT}
+
+Welcome to ${PROJECT} version ${VERSION}.
+
+## Features
+- Generated by ForgeKit
+- Complete project structure
+- Example source code
+
+## Author
+${AUTHOR}
+MD
+
+    API.md -> # API Documentation
+
+  /tests/
+    test_main.py
+    test_utils.py
+
+  .gitignore -> __pycache__/
+  requirements.txt
+  setup.cfg
+LRC
+
+# ==================== BINARIES ====================
+/bin
+  # Reserved for compiled helpers or shims
+  placeholder.txt -> This directory is reserved for binary helpers and shims.
+
+# ==================== PROJECT FILES ====================
+.gitignore <<GIT
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Testing
+.coverage
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+
+# ForgeKit output
+*_output/
+generated_*/
+
+# Logs
+*.log
+logs/
+GIT
+
+LICENSE <<TXT
+${LICENSE} License
+
+Copyright (c) ${YEAR} ${AUTHOR}
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+TXT
+
+pyproject.toml <<TOML
+[project]
+name = "${PKG}"
+version = "${FORGE_VERSION}"
+description = "${DESC}"
+readme = "README.md"
+requires-python = ">=${PYTHON_VERSION}"
+authors = [
+    { name = "${AUTHOR}", email = "${EMAIL}" }
+]
+keywords = ["scaffolding", "generator", "forge", "schema", "lrc", "cli"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Software Development :: Build Tools",
+]
+
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "mypy>=1.0.0",
+    "black>=23.0.0",
+    "build>=0.10.0",
+]
+
+docs = [
+    "mkdocs>=1.4.0",
+    "mkdocs-material>=9.0.0",
+]
+
+[project.urls]
+Homepage = "${PROJECT_URL}"
+Repository = "${PROJECT_URL}"
+Documentation = "${PROJECT_URL}#readme"
+"Bug Reports" = "${PROJECT_URL}/issues"
+"Changelog" = "${PROJECT_URL}/blob/main/CHANGELOG.md"
+
+[project.scripts]
+${CLI_NAME} = "src.cli:main"
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\\.pyi?$'
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "--verbose --strict-markers --strict-config"
+testpaths = ["tests"]
+pythonpath = ["src"]
+TOML
+
+README.md <<MD
+# ${PKG} — Generated by LRC
+
+> *${SECRET_MSG}*
+
+This repository was generated from a single schema using **LRC (Local Repo Compile)**.
+
+## 🚀 Quick Start
+
+\`\`\`bash
+# Setup development environment
+./scripts/install-dev.sh
+
+# Run tests
+./scripts/test.sh
+
+# Build package
+./scripts/build.sh
+
+# Use the CLI
+${CLI_NAME} --help
+\`\`\`
+
+## 📖 Documentation
+
+See the [docs/](./docs/) directory for comprehensive documentation:
+
+- [README.md](./docs/README.md) - Main documentation
+- [API Reference](./docs/API_REFERENCE.md) - API documentation  
+- [Easter Egg](./docs/EASTER_EGG.md) - Hidden message and philosophy
+
+## 🧪 Examples
+
+Check out the [examples/](./examples/) directory for sample schemas:
+
+- [quickstart.lrc](./examples/quickstart.lrc) - Minimal example
+- [demo_project.lrc](./examples/demo_project.lrc) - Comprehensive example
+
+## 🔧 What is This?
+
+A compact, developer-focused forge that demonstrates:
+
+- **Schema-driven development** - Generate projects from declarative schemas
+- **Self-referential design** - The tool that can generate itself
+- **Comprehensive tooling** - Tests, docs, scripts, and packaging
+- **Cross-platform compatibility** - Works everywhere Python runs
+
+## 📄 License
+
+${LICENSE} License - see [LICENSE](./LICENSE) file for details.
+
+---
+
+*Generated by LRC v0.2.2 — The tool that builds tools.*
+MD
+
+CHANGELOG.md <<MD
+# Changelog
+
+All notable changes to ${PKG} will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.2.0] - ${YEAR}-01-01
+
+### Added
+- Enhanced CLI with better error handling and validation
+- Improved template rendering with regex-based variable substitution
+- Comprehensive test suite with pytest fixtures
+- Better documentation with API reference and examples
+- Utility functions for file operations and tree visualization
+- Development scripts for testing, building, and installation
+- Example schemas for quickstart and demo projects
+
+### Changed
+- Updated to LRC v0.2.2 schema format
+- Improved error handling and validation throughout
+- Enhanced cross-platform compatibility
+- Better code organization and type hints
+
+### Fixed
+- Heredoc parsing edge cases
+- Variable substitution in nested contexts
+- File path handling on different platforms
+
+## [0.1.0] - ${YEAR}-01-01
+
+### Added
+- Initial release of ${PKG}
+- Basic CLI interface
+- Core forge functionality with schema parsing
+- Simple template rendering
+- Basic project structure generation
+- Minimal test suite
+- Documentation and examples
+
+---
+
+*Generated by LRC — Local Repo Compile*
+MD
+
+# ==================== SECURITY & MANIFEST (DEMO) ====================
+SECURITY.md <<MD
+# Security Policy
+
+## Supported Versions
+
+| Version | Supported          |
+| ------- | ------------------ |
+| 0.2.x   | :white_check_mark: |
+| 0.1.x   | :x:                |
+
+## Reporting a Vulnerability
+
+Please report security vulnerabilities to ${EMAIL}.
+
+This is a code generation tool. While it doesn't handle sensitive data by default, 
+please exercise caution when:
+
+1. Generating code with user-provided templates
+2. Using the tool in automated build pipelines
+3. Processing schemas from untrusted sources
+
+## Best Practices
+
+- Validate schema files before processing
+- Use dry-run mode to preview changes
+- Review generated code before execution
+- Keep the tool updated to the latest version
+MD
+
+# ==================== FOOTER ====================
+.lrc_manifest.json <<JSON
+{
+  "project": "${PKG}",
+  "version": "${FORGE_VERSION}",
+  "generator": "LRC",
+  "generator_version": "0.2.2",
+  "schema_version": "1.1",
+  "author": "${AUTHOR}",
+  "timestamp": "${YEAR}-01-01T00:00:00Z",
+  "files_generated": 28,
+  "directories_created": 12,
+  "secret_message": "${SECRET_MSG}",
+  "compatibility": {
+    "python": ">=3.8",
+    "platforms": ["linux", "macos", "windows", "wsl2", "android-termux"]
+  }
+}
+JSON
+
+@footer <<TXT
+✅ Project '${PKG}' built successfully!
+📁 Output: ./${PKG}_output/
+📦 Version: ${FORGE_VERSION}
+🧠 Generated by LRC v0.2.2 — Local Repo Compile
+💬 Secret: "${SECRET_MSG}"
+🚀 Ready to forge your own creations!
+TXT
