@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""
-LRC CLI entry point.
-"""
+"""LRC CLI entry point."""
 
 import sys
-from .core import main
+
+from .cli import main as cli_main
+
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(cli_main())

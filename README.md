@@ -4,269 +4,190 @@
 
 # ⚙️ LRC — Local Repo Compile
 
-**LRC** lets you build full project repositories from simple, declarative text schemas — directly from your terminal.
+**LRC** (Local Repo Compiler) turns declarative `.lrc` schema files into complete, production-ready repositories. Version **v1.0.0-alpha.1** introduces a modular architecture, DAT audit integration, and enterprise security features such as template trust policies and GPG validation for imported schemas.
 
-Cross-platform support for **Linux**, **macOS**, **Windows**, **WSL2**, and **Android/Termux**.
+---
+
+## ✨ Highlights
+
+- ✅ Modular runtime (`parser`, `compiler`, `generator`, `cli`) under `src/lrc`
+- ✅ Robust schema language with heredocs, variable expansion, and nested directives
+- ✅ Trusted template policy via `trusted_templates.json`
+- ✅ Optional DAT post-build auditing via `--audit`
+- ✅ Cross-platform bootstrap for Linux, macOS, Windows, WSL, and Termux
+- ✅ Python **3.9 → 3.13** compatibility with automated linting, typing, and tests
 
 ---
 
 ## 🚀 Quick Start
 
-### 🧩 Installation
-
-#### **Method 1 — Clone & Install**
+### Install
 ```bash
+# Clone & bootstrap dependencies
 git clone https://github.com/Justadudeinspace/lrc.git
 cd lrc
 chmod +x install_deps.sh
 ./install_deps.sh
+
+# Optional: install the CLI into ~/.local/bin (or platform equivalent)
+python -m lrc --bootstrap
 ```
-Method 2 — Manual Install
-```python
-pip install -e .
+
+### Compile a schema
+```bash
+# Generate a repo from a schema file
+lrc schema_example.lrc -o ./generated
+
+# Preview actions without touching disk
+lrc schema_example.lrc --dry-run
+
+# Force overwrites and run DAT audit afterwards
+lrc schema_example.lrc -o ./generated --force --audit
 ```
-Method 3 — System-Wide Bootstrap
-```python
-python3 lrc --bootstrap
-```
+
+> **Tip:** `lrc --platform-info` prints environment diagnostics useful for troubleshooting cross-platform quirks.
 
 ---
 
-## 💡 Basic Usage
+## 🧩 Schema Language Essentials
 
-1️⃣ Create a Schema File
-
-myproject.lrc
-```
-# Project: My Awesome Project
-# Description: Example project
-
-@set AUTHOR=YourName
-/src
-  main.py -> print("Hello ${AUTHOR}!")
-README.md <<MD
-# ${PROJECT}
-Created by ${AUTHOR}
-MD
-```
-2️⃣ Generate the Project
-```python
-lrc myproject.lrc
-```
-
----
-
-## 📜 Schema Language Reference
-
-🧱 Comments & Metadata
-```
-# Project: My Project
-# Description: Simple demo
+### Metadata & variables
+```text
+# Project: Demo Service
+# Description: REST API scaffold
 # Version: 1.0.0
-```
-⚙️ Variables
-```
-@set AUTHOR=YourName
-@set EMAIL=your@email.com
-```
-Use variables anywhere with ${VARIABLE} — in paths or content.
 
+@set AUTHOR=Acme
+@set DESCRIPTION=Internal tooling
+```
 
----
+Use `${VARIABLE}` anywhere in paths, filenames, or file contents.
 
-## 🧾 File Creation Patterns
-
-Empty file
-```
-main.py
-```
-Inline content
-```
-config.json -> {"key": "value"}
-```
-Multi-line (Heredoc)
-```
-script.py <<PY
+### File expressions
+```text
+src/              # create directories recursively
+README.md         # empty file
+config.json -> {"debug": false}               # inline file
+script.py <<PY                                # heredoc file
 #!/usr/bin/env python3
-print("Hello World")
-print("Multi-line content")
+print("Hello ${AUTHOR}")
 PY
 ```
 
----
+### Directives
+| Directive | Description |
+|-----------|-------------|
+| `@set KEY=VALUE` | Define variables in the parser scope |
+| `@ignore pattern` | Skip actions whose paths match `fnmatch` patterns |
+| `@template name` | Render a trusted template (validated via `trusted_templates.json`) |
+| `@chmod path mode` | Apply a POSIX mode (e.g. `0o755`) |
+| `@include file` | Include another `.lrc` file (GPG signature validated when present) |
+| `@copy src dest` | Copy an existing file into the build output |
+| `@symlink target link` | Create symbolic links |
 
-## 📐 Directives
-
-Directive	Description
-
-```
-@set KEY=VALUE	Define variables
-@ignore pattern	Ignore paths matching pattern
-@template name	Use built-in template (python-cli, node-cli, rust-cli)
-@chmod path +x	Make file executable
-@include file	Include another schema file
-@copy src dest	Copy existing files
-@symlink target link	Create symbolic links
-```
-
+> Place `trusted_templates.json` beside your schema (or in `~/.config/lrc/`) to extend the allow-list. Attempting to use untrusted templates raises a `ParseError` with contextual hints.
 
 ---
 
-## 🗂️ Directory Structure Example
+## 🔐 Security & Trust
 
-```
-/root-dir
-  /src
-    main.py -> print("Hello World")
-  docs/
-    README.md -> # Docs
-```
+### Template trust policy
+LRC reads `trusted_templates.json` from:
+1. The schema directory or `.lrc/` subdirectory
+2. `~/.config/lrc/trusted_templates.json`
+3. The repository default (see `trusted_templates.json` in the project root)
+
+Only templates listed in the allow-list may be rendered. Attempting to use an untrusted template aborts the build with a red, contextual error message.
+
+### GPG-validated includes
+When an included schema has a sibling signature file (`.asc` or `.sig`), LRC verifies the signature with `gpg --verify`. Set `LRC_REQUIRE_SIGNED_INCLUDES=1` to require signatures for every `@include`. Invalid or missing signatures raise descriptive `ParseError`s that highlight the offending line in the source schema.
 
 ---
 
 ## 🧰 CLI Reference
+```
+lrc SCHEMA [OPTIONS]
 
-lrc SCHEMA_FILE [OPTIONS]
-
-```python
 Options:
-  -n, --dry-run        Preview actions only (no writes)
-  -f, --force          Overwrite existing files
-  -o, --out DIR        Set custom output directory
-  -v, --verbose        Enable detailed logs
-  -b, --bootstrap      Install system-wide command
-  --version            Show version info
-  -h, --help           Display help message
-
-🔍 Examples
-
-lrc myproject.lrc                 # Generate project
-lrc myproject.lrc -o ./output     # Custom output directory
-lrc myproject.lrc --dry-run       # Preview only
-lrc myproject.lrc --force         # Overwrite existing files
-lrc --bootstrap                   # Install system-wide
+  -o, --output PATH    Override output directory
+  --base-dir PATH      Base directory for resolving includes
+  --dry-run            Preview actions without writing to disk
+  --force              Overwrite existing files
+  --audit              Run the DAT audit pipeline after a successful build
+  -v, --verbose        Emit verbose logs and platform info
+  --bootstrap          Install the CLI into the user PATH
+  --platform-info      Dump environment diagnostics
+  --version            Print version information
 ```
+
+`--audit` reads `~/.config/lrc/dat_integration.json`:
+```json
+{
+  "enabled": true,
+  "command": ["dat", "audit", "--report", "${BUILD_DIR}"],
+  "env": {"DAT_ENV": "production"}
+}
+```
+If the file is absent, auditing is skipped with an informative message.
 
 ---
 
-## ⚡ Command Usage Modes
+## 🔄 LRC → DAT Workflow Example
+1. Author your schema (see [`examples/dat_integration.lrc`](./examples/dat_integration.lrc)).
+2. Configure DAT integration in `~/.config/lrc/dat_integration.json`.
+3. Compile the schema with `lrc examples/dat_integration.lrc -o ./build --audit`.
+4. Inspect DAT output logged immediately after a successful build.
 
-### 🧩 Without Bootstrap (Development / Manual)
-
-```python
-# Install system-wide
-python3 lrc --bootstrap
-
-# Generate project
-python3 lrc my_schema.lrc
-
-# Dry-run preview
-python3 lrc my_schema.lrc --dry-run --verbose
-
-# Overwrite existing files
-python3 lrc my_schema.lrc --force
-
-# Show platform information
-python3 lrc --platform-info
-```
-
-### 🚀 With Bootstrap (Installed System-Wide)
-
-```python
-# Basic usage
-lrc myproject.lrc
-
-# Custom output + verbose
-lrc myproject.lrc -o ./output -v
-
-# Preview only
-lrc myproject.lrc --dry-run
-
-# Overwrite existing files
-lrc myproject.lrc --force
-
-# Show platform details
-lrc --platform-info
-
-# Help
-lrc --help
-```
+DAT command failures are surfaced with warnings while keeping the repository intact.
 
 ---
 
-## 📚 Example Schemas
+## 🧪 Quality Tooling
 
-Located in /examples:
+- `pytest` test suite covering parser, compiler, and CLI behaviours
+- `mypy` static typing, `black` formatting, and coverage reporting via CI (`.github/workflows/lrc-build.yml`)
+- Works on CPython 3.9, 3.10, 3.11, 3.12, and 3.13
 
-File	Description
-
-```
-schema_example.lrc	Minimal demo with all features
-forgekit_schema_full.lrc	Complete project including tests, docs, and scripts
-```
-
-
----
-
-## 🧱 Templates
-
-Pre-built starter templates:
-
-Template	Description
-
-```
-python-cli	Python command-line tool
-node-cli	Node.js CLI tool
-rust-cli	Rust command-line tool
-```
-
-
----
-
-## 🧑‍💻 Development
-
-```python
-# Setup development environment
-pip install -e ".[dev]"
-
-# Run tests
+Run locally:
+```bash
+pip install -e .[dev]
 pytest
-
-# Static type checking
-mypy src/
-
-# Format code
-black src/
+mypy src/lrc
+black --check src tests
 ```
 
 ---
 
-## 🧩 System Dependencies
+## 🆘 Troubleshooting
 
-Install cross-platform dependencies for PDF and font support:
+| Symptom | Resolution |
+|---------|------------|
+| `GPG executable not available` | Install `gpg` or unset `LRC_REQUIRE_SIGNED_INCLUDES`. |
+| Template rejected as untrusted | Add the template to `trusted_templates.json` in the schema directory or config path. |
+| DAT audit skipped | Ensure `~/.config/lrc/dat_integration.json` exists and `enabled` is `true`. |
+| PATH not updated after `--bootstrap` | Re-run your shell or source the printed profile file. |
 
-Platform	Command
-
-```
-Debian / Ubuntu / WSL2	sudo apt update && sudo apt install -y fonts-dejavu-core
-Fedora	sudo dnf install -y dejavu-sans-mono-fonts
-Arch	sudo pacman -Sy --noconfirm ttf-dejavu
-macOS (Homebrew)	brew tap homebrew/cask-fonts && brew install --cask font-dejavu-sans-mono
-Termux / Android	pkg install -y fonts-dejavu
-Windows	Install “DejaVu Sans Mono” manually (falls back to Courier).
-```
-
+Use `lrc --platform-info` when reporting issues to include environment details.
 
 ---
 
-## ⚖️ License
+## 🧽 Schema Lint Checklist
 
-MIT License — see [LICENSE](./LICENSE).
-
+- [ ] Metadata (`# Project`, `# Description`, `# Version`) defined at the top
+- [ ] Variables declared before use with `@set`
+- [ ] Templates approved via `trusted_templates.json`
+- [ ] Includes accompanied by `.asc` signatures when required
+- [ ] Avoid trailing whitespace — indentation controls directory nesting
 
 ---
 
-<p align="center"><b>LRC v1.0.0-Stable</b> — Designed by <b>JADIS (Justadudeinspace)</b></p>
-<p align="center">Cross-platform. Declarative. Reproducible.</p>
-```
+## 📚 Further Reading
+
+- [`docs/getting-started.md`](./docs/getting-started.md) — step-by-step tutorial
+- [`docs/dat-integration.md`](./docs/dat-integration.md) — configuring the DAT bridge
+- [`docs/troubleshooting.md`](./docs/troubleshooting.md) — extended FAQ
+- [`examples/`](./examples) — ready-to-run schemas for diverse stacks
+
 ---
+
+© 2024 LRC contributors. Licensed under the MIT License.
