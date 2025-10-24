@@ -1,0 +1,408 @@
+name: Sign and Release
+
+on:
+  # Automatic trigger on version tags
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'        # Major.Minor.Patch (v1.0.0)
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'  # Release candidates (v1.0.0-rc.1)
+      - 'v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+' # Beta releases (v1.0.0-beta.1)
+      - 'v[0-9]+.[0-9]+.[0-9]+-alpha.[0-9]+' # Alpha releases (v1.0.0-alpha.1)
+  
+  # Manual trigger for creating signed tags and releases
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Ref to tag (branch, commit SHA, or existing tag)'
+        required: false
+        default: 'main'
+      tag_name:
+        description: 'Tag name (must follow semver: v1.0.0, v2.1.0-rc.1)'
+        required: true
+        default: 'v1.0.0'
+      tag_message:
+        description: 'Tag annotation message'
+        required: false
+        default: 'Signed release'
+      make_release:
+        description: 'Create GitHub Release?'
+        required: false
+        default: true
+        type: boolean
+      generate_changelog:
+        description: 'Generate changelog for release?'
+        required: false
+        default: true
+        type: boolean
+      prerelease:
+        description: 'Mark as prerelease?'
+        required: false
+        default: false
+        type: boolean
+
+# Required permissions for release operations
+permissions:
+  contents: write
+  id-token: write  # For enhanced security
+
+env:
+  PYTHON_VERSION: '3.9'
+  NODE_VERSION: '18'
+
+jobs:
+  # ------------------------------------------------------------------
+  # A) Automated release when tag is pushed
+  # ------------------------------------------------------------------
+  release-on-tag:
+    name: Release on Tag Push
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Verify tag format
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          if [[ ! $TAG_NAME =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
+            echo "❌ Invalid tag format: $TAG_NAME"
+            echo "📋 Must follow: vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-(alpha|beta|rc).NUMBER"
+            exit 1
+          fi
+          echo "✅ Valid tag: $TAG_NAME"
+
+      - name: Checkout repository (with full history and tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Import GPG key for verification
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+
+      - name: Verify tag signature
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          if git verify-tag "$TAG_NAME" 2>/dev/null; then
+            echo "✅ Tag $TAG_NAME is properly signed"
+          else
+            echo "❌ Tag $TAG_NAME is not signed or signature is invalid"
+            exit 1
+          fi
+
+      - name: Setup Python
+        if: hashFiles('pyproject.toml') != ''
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        if: hashFiles('pyproject.toml') != ''
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build Python package
+        if: hashFiles('pyproject.toml') != ''
+        run: |
+          python -m build
+          # Verify the built packages
+          twine check dist/*
+
+      - name: Setup Node.js
+        if: hashFiles('package.json') != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Build Node.js package
+        if: hashFiles('package.json') != ''
+        run: |
+          npm ci
+          npm run build --if-present
+          npm test --if-present
+
+      - name: Generate changelog
+        id: changelog
+        uses: orhun/git-cliff-action@v2
+        with:
+          config: cliff.toml
+          args: --verbose --tag ${{ github.ref_name }}
+        env:
+          OUTPUT: CHANGES.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body_path: CHANGES.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          files: |
+            dist/**
+            *.whl
+            *.tar.gz
+            *.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload release assets
+        if: hashFiles('dist/*') != ''
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./dist/
+          asset_name: ${{ github.ref_name }}-assets.zip
+          asset_content_type: application/zip
+
+      - name: Notify success
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          channel: '#releases'
+          text: "🎉 Release ${{ github.ref_name }} published successfully!"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ------------------------------------------------------------------
+  # B) Manual workflow for creating signed tags and releases
+  # ------------------------------------------------------------------
+  create-signed-tag:
+    name: Create Signed Tag
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.prerelease && 'staging' || 'production' }}
+
+    steps:
+      - name: Validate inputs
+        run: |
+          TAG_NAME="${{ github.event.inputs.tag_name }}"
+          if [[ ! $TAG_NAME =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
+            echo "❌ Invalid tag format: $TAG_NAME"
+            echo "📋 Must follow semantic versioning: vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-(alpha|beta|rc).NUMBER"
+            exit 1
+          fi
+          echo "✅ Valid tag format: $TAG_NAME"
+
+      - name: Checkout repository (with full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Git identity
+        run: |
+          git config --global user.name "${{ secrets.GIT_USER_NAME || 'github-actions[bot]' }}"
+          git config --global user.email "${{ secrets.GIT_USER_EMAIL || 'github-actions[bot]@users.noreply.github.com' }}"
+
+      - name: Import GPG key for signing
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+
+      - name: Verify current commit
+        run: |
+          echo "Current commit: $(git rev-parse HEAD)"
+          echo "Current branch: $(git branch --show-current)"
+
+      - name: Create signed tag
+        id: create_tag
+        run: |
+          TAG_NAME="${{ github.event.inputs.tag_name }}"
+          TAG_MESSAGE="${{ github.event.inputs.tag_message }}"
+          
+          # Check if tag already exists
+          if git rev-parse -q --verify "refs/tags/${TAG_NAME}" >/dev/null; then
+            echo "❌ Tag $TAG_NAME already exists"
+            echo "💡 Delete existing tag or use a different name"
+            exit 1
+          fi
+          
+          # Create annotated, GPG-signed tag
+          git tag -s "${TAG_NAME}" -m "${TAG_MESSAGE}"
+          
+          # Verify the tag was created and signed
+          if git verify-tag "${TAG_NAME}"; then
+            echo "✅ Successfully created and signed tag: ${TAG_NAME}"
+            echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Failed to verify tag signature"
+            exit 1
+          fi
+
+      - name: Push signed tag
+        run: |
+          TAG_NAME="${{ github.event.inputs.tag_name }}"
+          git push origin "${TAG_NAME}"
+          echo "📤 Pushed tag ${TAG_NAME} to remote"
+
+      - name: Setup Python
+        if: hashFiles('pyproject.toml') != '' && github.event.inputs.make_release == true
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Build Python package
+        if: hashFiles('pyproject.toml') != '' && github.event.inputs.make_release == true
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+          python -m build
+          twine check dist/*
+
+      - name: Setup Node.js
+        if: hashFiles('package.json') != '' && github.event.inputs.make_release == true
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Build Node.js package
+        if: hashFiles('package.json') != '' && github.event.inputs.make_release == true
+        run: |
+          npm ci
+          npm run build --if-present
+          npm test --if-present
+
+      - name: Generate changelog
+        if: github.event.inputs.make_release == true && github.event.inputs.generate_changelog == true
+        uses: orhun/git-cliff-action@v2
+        with:
+          config: cliff.toml
+          args: --verbose --tag ${{ github.event.inputs.tag_name }}
+        env:
+          OUTPUT: CHANGES.md
+
+      - name: Create GitHub Release
+        if: github.event.inputs.make_release == true
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag_name }}
+          name: Release ${{ github.event.inputs.tag_name }}
+          body_path: CHANGES.md
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease }}
+          files: |
+            dist/**
+            *.whl
+            *.tar.gz
+            *.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload release assets
+        if: github.event.inputs.make_release == true && hashFiles('dist/*') != ''
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./dist/
+          asset_name: ${{ github.event.inputs.tag_name }}-assets.zip
+          asset_content_type: application/zip
+
+      - name: Notify success
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          channel: '#releases'
+          text: "🎉 ${{ github.event.inputs.tag_name }} created and released successfully!"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ------------------------------------------------------------------
+  # C) Security scanning for releases
+  # ------------------------------------------------------------------
+  security-scan:
+    name: Security Scan
+    needs: [release-on-tag, create-signed-tag]
+    if: always() && (needs.release-on-tag.result == 'success' || needs.create-signed-tag.result == 'success')
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          
+      - name: Dependency review
+        uses: actions/dependency-review-action@v4
+
+  # ------------------------------------------------------------------
+  # D) Post-release cleanup and notifications
+  # ------------------------------------------------------------------
+  post-release:
+    name: Post-Release
+    needs: [release-on-tag, create-signed-tag]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Release summary
+        if: always()
+        run: |
+          echo "🏷️ Release Summary"
+          echo "================="
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Event: ${{ github.event_name }}"
+          echo "Tag: ${{ github.ref_name || github.event.inputs.tag_name }}"
+          echo "Result: ${{ needs.release-on-tag.result || needs.create-signed-tag.result }}"
+          echo "URL: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name || github.event.inputs.tag_name }}"
+          
+      - name: Update release badge
+        if: success()
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: ${{ secrets.BADGES_GIST_ID }}
+          filename: release.json
+          label: Release
+          message: ${{ github.ref_name || github.event.inputs.tag_name }}
+          color: green
+          namedLogo: github
+
+      - name: Notify failure
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          channel: '#alerts'
+          text: "❌ Release failed for ${{ github.ref_name || github.event.inputs.tag_name }}"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -1,0 +1,673 @@
+# examples/schema_dev_example.lrc
+# Solo Developer Project Template
+# Project: my-dev-project
+# Description: Lightweight, focused project template for solo developers
+# Version: 1.0.0
+# Schema-Version: 1.1
+# Generator: LRC v0.2.2
+# Focus: Productivity, minimal setup, rapid development
+
+# ==================== SOLO DEVELOPER VARIABLES ====================
+@set AUTHOR=Developer Name
+@set EMAIL=developer@example.com
+@set PROJECT_NAME=my-dev-project
+@set DESCRIPTION=A focused project for solo development
+@set YEAR=2025
+@set LICENSE=MIT
+@set PYTHON_VERSION=3.9
+@set DEV_ENV=local
+@set CODE_STYLE=black
+
+# ==================== MINIMAL IGNORE PATTERNS ====================
+@ignore __pycache__ .venv .DS_Store *.tmp
+
+# ==================== QUICK START TEMPLATE ====================
+@template python-cli
+
+# ==================== LEAN PROJECT STRUCTURE ====================
+/src
+/tests
+/scripts
+/docs
+
+# ==================== FOCUSED SOURCE CODE ====================
+/src
+  __init__.py -> """${PROJECT_NAME} - ${DESCRIPTION}"""
+  
+  main.py <<PY
+#!/usr/bin/env python3
+"""
+${PROJECT_NAME} - Solo Developer Project
+
+A clean, minimal codebase for rapid development.
+"""
+
+import click
+
+@click.group()
+def cli():
+    """${PROJECT_NAME} - Developer CLI"""
+    pass
+
+@cli.command()
+def dev():
+    """Start development mode"""
+    print("🚀 Development mode started!")
+    print(f"Working on: {PROJECT_NAME}")
+    print("Happy coding! 🎯")
+
+@cli.command()
+def test():
+    """Run quick tests"""
+    print("🧪 Running tests...")
+    # Add your test logic here
+
+@cli.command()
+def deploy():
+    """Quick deployment"""
+    print("📦 Deploying...")
+    # Add deployment logic here
+
+if __name__ == "__main__":
+    cli()
+PY
+  @chmod src/main.py +x
+
+  utils.py <<PY
+"""Utility functions for ${PROJECT_NAME}"""
+
+import os
+from pathlib import Path
+
+def get_project_root() -> Path:
+    """Get project root directory"""
+    return Path(__file__).parent.parent
+
+def setup_development_env():
+    """Setup development environment"""
+    root = get_project_root()
+    (root / "data").mkdir(exist_ok=True)
+    (root / "logs").mkdir(exist_ok=True)
+    print("✅ Development environment ready")
+
+def quick_debug(data):
+    """Quick debugging utility"""
+    print(f"🔍 DEBUG: {type(data)} - {data}")
+PY
+
+  config.py <<PY
+"""Simple configuration for solo development"""
+
+import os
+from typing import Dict, Any
+
+class DevConfig:
+    """Development configuration"""
+    
+    # Development settings
+    DEBUG = True
+    TESTING = False
+    
+    # Project settings
+    PROJECT_NAME = "${PROJECT_NAME}"
+    VERSION = "1.0.0"
+    
+    # Paths
+    BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+    DATA_DIR = os.path.join(BASE_DIR, "data")
+    LOGS_DIR = os.path.join(BASE_DIR, "logs")
+    
+    @classmethod
+    def get_settings(cls) -> Dict[str, Any]:
+        """Get all settings as dict"""
+        return {k: v for k, v in cls.__dict__.items() 
+                if not k.startswith('_') and not callable(v)}
+PY
+
+# ==================== ESSENTIAL TESTING ====================
+/tests
+  __init__.py
+  
+  test_basics.py <<PY
+"""Essential tests for solo development"""
+
+from src.main import cli
+from src.utils import get_project_root, setup_development_env
+from click.testing import CliRunner
+
+def test_cli_commands():
+    """Test basic CLI functionality"""
+    runner = CliRunner()
+    
+    # Test dev command
+    result = runner.invoke(cli, ['dev'])
+    assert result.exit_code == 0
+    assert "Development mode" in result.output
+    
+    # Test help
+    result = runner.invoke(cli, ['--help'])
+    assert result.exit_code == 0
+
+def test_utils():
+    """Test utility functions"""
+    root = get_project_root()
+    assert root.exists()
+    assert root.name == "${PROJECT_NAME}"
+PY
+
+  test_config.py <<PY
+"""Test configuration"""
+
+from src.config import DevConfig
+
+def test_config_settings():
+    """Test configuration settings"""
+    settings = DevConfig.get_settings()
+    
+    assert settings['DEBUG'] is True
+    assert settings['PROJECT_NAME'] == "${PROJECT_NAME}"
+    assert 'BASE_DIR' in settings
+PY
+
+# ==================== PRODUCTIVITY SCRIPTS ====================
+/scripts
+  dev.sh <<SH
+#!/usr/bin/env bash
+# Solo Developer Productivity Script
+
+echo "🎯 ${PROJECT_NAME} - Developer Setup"
+echo "======================================"
+
+# Quick environment check
+echo "🔍 Environment Check:"
+python --version || echo "⚠️  Python not found"
+git --version || echo "⚠️  Git not found"
+
+# Setup virtual environment if needed
+if [ ! -d ".venv" ]; then
+    echo "🐍 Creating virtual environment..."
+    python -m venv .venv
+fi
+
+echo "🔧 Activating environment..."
+source .venv/bin/activate
+
+echo "📦 Installing dependencies..."
+pip install -e .
+
+echo "✅ Ready to code!"
+echo ""
+echo "💡 Quick Commands:"
+echo "   ${PROJECT_NAME} dev     # Start development"
+echo "   ${PROJECT_NAME} test    # Run tests"
+echo "   ${PROJECT_NAME} deploy  # Quick deploy"
+echo "   ./scripts/code.sh       # Code quality"
+SH
+  @chmod scripts/dev.sh +x
+
+  code.sh <<SH
+#!/usr/bin/env bash
+# Solo Developer Code Quality Script
+
+echo "🎨 Code Quality Check"
+echo "====================="
+
+# Format code
+echo "📝 Formatting code..."
+python -m black src/ tests/
+
+# Quick lint
+echo "🔍 Basic linting..."
+python -m flake8 src/ --max-complexity=10
+
+# Type checking (optional)
+echo "📋 Type checking..."
+python -m mypy src/ --ignore-missing-imports || echo "⚠️  Type checking skipped"
+
+# Run tests
+echo "🧪 Running tests..."
+python -m pytest tests/ -v
+
+echo "✅ Code quality check complete!"
+SH
+  @chmod scripts/code.sh +x
+
+  deploy.sh <<SH
+#!/usr/bin/env bash
+# Solo Developer Deployment Script
+
+echo "🚀 Quick Deployment"
+echo "==================="
+
+ENVIRONMENT=${1:-staging}
+
+echo "Deploying to: $ENVIRONMENT"
+
+# Run tests first
+echo "🧪 Pre-deployment check..."
+python -m pytest tests/ -x
+
+# Simple deployment logic
+case $ENVIRONMENT in
+    staging)
+        echo "📦 Deploying to staging..."
+        # Add your staging deployment commands
+        ;;
+    production)
+        echo "🎯 Deploying to production..."
+        # Add your production deployment commands
+        ;;
+    *)
+        echo "❌ Unknown environment: $ENVIRONMENT"
+        exit 1
+        ;;
+esac
+
+echo "✅ Deployment to $ENVIRONMENT completed!"
+SH
+  @chmod scripts/deploy.sh +x
+
+# ==================== MINIMAL DOCUMENTATION ====================
+/docs
+  README.md <<MD
+# ${PROJECT_NAME}
+
+> **Solo Developer Edition**
+
+${DESCRIPTION}
+
+## 🎯 Quick Start
+
+\`\`\`bash
+# Generate project
+lrc schema_dev_example.lrc -o ./${PROJECT_NAME}
+cd ${PROJECT_NAME}
+
+# Setup and run
+./scripts/dev.sh
+${PROJECT_NAME} dev
+\`\`\`
+
+## 🚀 Developer Workflow
+
+### Daily Development
+\`\`\`bash
+# Start coding session
+${PROJECT_NAME} dev
+
+# Run code quality checks
+./scripts/code.sh
+
+# Quick deployment
+./scripts/deploy.sh staging
+\`\`\`
+
+### Project Structure
+\`\`\`
+${PROJECT_NAME}/
+├── src/           # Source code
+│   ├── main.py    # CLI entry point
+│   ├── utils.py   # Developer utilities
+│   └── config.py  # Simple configuration
+├── tests/         # Essential tests
+├── scripts/       # Productivity scripts
+└── docs/          # Minimal documentation
+\`\`\`
+
+## 🔧 Core Features
+
+- **Click CLI** for easy command management
+- **Simple configuration** without complexity
+- **Developer utilities** for common tasks
+- **Essential testing** that matters
+- **Productivity scripts** for daily workflow
+
+## 🛠️ Customization
+
+Edit these files to match your needs:
+- \`src/main.py\` - Add your CLI commands
+- \`src/utils.py\` - Add your helper functions
+- \`src/config.py\` - Configure your settings
+- \`scripts/\` - Modify deployment and quality scripts
+
+## 📦 Deployment
+
+### Staging
+\`\`\`bash
+./scripts/deploy.sh staging
+\`\`\`
+
+### Production
+\`\`\`bash
+./scripts/deploy.sh production
+\`\`\`
+
+## 🎪 Solo Developer Tips
+
+1. **Keep it simple** - Focus on what matters
+2. **Automate repetitive tasks** - Use the scripts
+3. **Test the important stuff** - Don't over-test
+4. **Document as you go** - But don't over-document
+5. **Deploy often** - Small, frequent deployments
+
+## 📄 License
+
+${LICENSE} License - see [LICENSE](../LICENSE) for details.
+
+---
+
+*Built for developers who ship 🚀*
+MD
+
+  DEV_TIPS.md <<MD
+# Solo Developer Tips
+
+## 🎯 Productivity Workflow
+
+### Morning Setup
+\`\`\`bash
+./scripts/dev.sh
+${PROJECT_NAME} dev
+\`\`\`
+
+### Before Commits
+\`\`\`bash
+./scripts/code.sh
+\`\`\`
+
+### End of Day
+\`\`\`bash
+./scripts/deploy.sh staging
+git add .
+git commit -m "feat: daily progress"
+git push
+\`\`\`
+
+## 🔧 Useful Commands
+
+### Development
+\`\`\`bash
+# Start development session
+${PROJECT_NAME} dev
+
+# Run specific tests
+python -m pytest tests/test_basics.py -v
+
+# Debug a function
+python -c "from src.utils import quick_debug; quick_debug('test')"
+\`\`\`
+
+### Project Management
+\`\`\`bash
+# Check project health
+python -c "from src.config import DevConfig; print(DevConfig.get_settings())"
+
+# Setup development environment
+python -c "from src.utils import setup_development_env; setup_development_env()"
+\`\`\`
+
+## 🚀 Quick Customization
+
+### Add New CLI Command
+\`\`\`python
+@cli.command()
+def new_feature():
+    \"\"\"Describe your new feature\"\"\"
+    print("Implement your feature here")
+\`\`\`
+
+### Add Utility Function
+\`\`\`python
+def your_helper_function():
+    \"\"\"Add your helper function here\"\"\"
+    return "your logic"
+\`\`\`
+MD
+
+# ==================== PROJECT CONFIGURATION ====================
+.gitignore <<GIT
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Development
+data/
+logs/
+*.log
+GIT
+
+LICENSE <<TXT
+${LICENSE} License
+
+Copyright (c) ${YEAR} ${AUTHOR}
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+TXT
+
+pyproject.toml <<TOML
+[project]
+name = "${PROJECT_NAME}"
+version = "1.0.0"
+description = "${DESCRIPTION}"
+readme = "README.md"
+requires-python = ">=${PYTHON_VERSION}"
+authors = [
+    { name = "${AUTHOR}", email = "${EMAIL}" }
+]
+keywords = ["developer", "productivity", "cli", "tools"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+    "click>=8.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+
+[project.scripts]
+${PROJECT_NAME} = "src.main:cli"
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+addopts = "--verbose"
+TOML
+
+# ==================== QUICK START GUIDE ====================
+QUICKSTART.md <<MD
+# 🚀 Quick Start Guide
+
+## 1. Generate Project
+\`\`\`bash
+lrc schema_dev_example.lrc -o ./my-project
+cd my-project
+\`\`\`
+
+## 2. First-Time Setup
+\`\`\`bash
+./scripts/dev.sh
+\`\`\`
+
+## 3. Start Developing
+\`\`\`bash
+${PROJECT_NAME} dev
+\`\`\`
+
+## 4. Daily Workflow
+\`\`\`bash
+# Make changes to src/
+./scripts/code.sh
+./scripts/deploy.sh staging
+\`\`\`
+
+## 🎯 What You Get
+
+✅ **Clean project structure**  
+✅ **CLI with useful commands**  
+✅ **Productivity scripts**  
+✅ **Essential testing**  
+✅ **Minimal documentation**  
+✅ **Deployment ready**  
+
+## 🔧 First Customizations
+
+1. Edit \`src/main.py\` - Add your CLI commands
+2. Edit \`src/utils.py\` - Add helper functions  
+3. Edit \`src/config.py\` - Configure settings
+4. Run \`./scripts/code.sh\` to format
+
+## 🚀 Ship It!
+
+When ready to deploy:
+\`\`\`bash
+./scripts/deploy.sh production
+\`\`\`
+
+---
+
+*Happy coding! Remember: Ship often, iterate fast 🚀*
+MD
+
+README.md <<MD
+# ${PROJECT_NAME}
+
+${DESCRIPTION}
+
+## 🎯 For Solo Developers
+
+This template is optimized for individual developers who want to:
+- **Start fast** with minimal setup
+- **Stay focused** with clean structure  
+- **Ship quickly** with productivity tools
+- **Iterate rapidly** with essential testing
+
+## ⚡ Ultra-Quick Start
+
+\`\`\`bash
+# Generate and run
+lrc schema_dev_example.lrc -o ./${PROJECT_NAME}
+cd ${PROJECT_NAME}
+./scripts/dev.sh
+${PROJECT_NAME} dev
+\`\`\`
+
+## 📁 Lean Structure
+
+\`\`\`
+${PROJECT_NAME}/
+├── src/           # Your code here
+├── tests/         # Tests that matter
+├── scripts/       # Productivity tools
+└── docs/          # Just enough docs
+\`\`\`
+
+## 🔧 Built For Productivity
+
+- **Click CLI** - Easy command management
+- **Utility functions** - Common dev tasks
+- **Quality scripts** - Code formatting & checks
+- **Deployment scripts** - Staging & production
+
+## 🚀 Next Steps
+
+1. Read \`QUICKSTART.md\` for immediate setup
+2. Check \`DEV_TIPS.md\` for workflow advice
+3. Customize the code in \`src/\`
+4. Start shipping!
+
+## 📄 License
+
+${LICENSE} - See [LICENSE](LICENSE) for details.
+
+---
+
+*Built for developers who actually ship code 🎯*
+MD
+
+# ==================== END OF SOLO DEVELOPER SCHEMA ====================
+# This schema is optimized for solo developers who want to ship fast
+# Generate with: lrc schema_dev_example.lrc -o ./my-project
+# Start coding immediately with: ./scripts/dev.sh
+
+# Focus on what matters: writing code and shipping features! 🚀

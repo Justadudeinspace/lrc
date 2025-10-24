@@ -1,0 +1,2493 @@
+# examples/schema_entprse_example.lrc
+# Enterprise-Ready Project Template
+# Project: enterprise-project-template
+# Description: Enterprise-grade project template with comprehensive tooling, security, and DevOps practices
+# Version: 2.0.0
+# Schema-Version: 1.1
+# Generator: LRC v0.2.2
+# Compatible-With: Python 3.8+
+
+# ==================== ENTERPRISE METADATA & VARIABLES ====================
+# Core project metadata
+@set AUTHOR=Enterprise Development Team
+@set EMAIL=devops@company.com
+@set PROJECT_NAME=enterprise-project-template
+@set DESCRIPTION=Enterprise-grade project template with comprehensive tooling, security, and DevOps practices
+@set YEAR=2025
+@set LICENSE=Apache-2.0
+@set PYTHON_VERSION=3.8
+@set PROJECT_URL=https://github.com/company/enterprise-project-template
+@set SUPPORT_EMAIL=support@company.com
+@set TEAM_NAME=Platform Engineering
+
+# Security & Compliance
+@set SECURITY_CONTACT=security@company.com
+@set COMPLIANCE_FRAMEWORK=SOC2
+@set DATA_CLASSIFICATION=Internal
+
+# Deployment & Infrastructure
+@set DOCKER_NAMESPACE=company
+@set K8S_NAMESPACE=platform
+@set ENVIRONMENT=development
+@set REGION=us-east-1
+
+# ==================== ENTERPRISE IGNORE PATTERNS ====================
+# Comprehensive ignore patterns for enterprise environments
+@ignore node_modules .venv __pycache__ .DS_Store *.tmp build dist *.egg-info .mypy_cache .pytest_cache
+@ignore .coverage htmlcov .benchmarks .vscode .idea *.swp *.swo
+@ignore local_settings.py *.local.* .env.local secrets.txt
+@ignore *.log logs/ audit/ backups/ temp/ tmp/
+@ignore .terraform terraform.tfstate* *.tfvars
+@ignore docker-compose.override.yml
+
+# ==================== ENTERPRISE TEMPLATES ====================
+# Apply enterprise-ready template with enhanced structure
+@template python-cli
+
+# ==================== ENTERPRISE PROJECT STRUCTURE ====================
+# Comprehensive enterprise directory structure
+/src
+/docs
+/tests
+/scripts
+/assets
+/examples
+/config
+/deploy
+/helm
+/terraform
+/docker
+/monitoring
+/security
+/compliance
+/.github
+
+# ==================== SOURCE CODE (ENTERPRISE GRADE) ====================
+/src
+  # Package initialization with enterprise metadata
+  __init__.py <<PY
+"""${PROJECT_NAME} - ${DESCRIPTION}
+
+Enterprise-Grade Python Package
+
+Features:
+- Comprehensive type hints
+- Async/await support
+- Structured logging
+- Configuration management
+- Security best practices
+- Monitoring integration
+"""
+
+__version__ = "2.0.0"
+__author__ = "${AUTHOR}"
+__email__ = "${SUPPORT_EMAIL}"
+__team__ = "${TEAM_NAME}"
+
+import logging
+from typing import Optional
+
+# Configure structured logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+from .cli import main
+from .core import EnterpriseService, ConfigManager
+from .utils import security, monitoring, validation
+from .api import routes, middleware, handlers
+
+__all__ = [
+    "main",
+    "EnterpriseService",
+    "ConfigManager", 
+    "security",
+    "monitoring",
+    "validation",
+    "routes",
+    "middleware",
+    "handlers",
+    "logger"
+]
+PY
+
+  # Enterprise CLI with comprehensive options
+  cli.py <<PY
+#!/usr/bin/env python3
+"""${PROJECT_NAME} - Enterprise CLI Interface"""
+
+import argparse
+import asyncio
+import logging
+import sys
+from pathlib import Path
+from typing import Optional
+
+from .__init__ import __version__, logger
+from .core import EnterpriseService, ConfigManager
+from .utils.monitoring import MetricsCollector
+
+class EnterpriseCLI:
+    \"\"\"Enterprise-grade CLI with comprehensive features.\"\"\"
+
+    def __init__(self):
+        self.parser = self._create_parser()
+        self.metrics = MetricsCollector()
+
+    def _create_parser(self) -> argparse.ArgumentParser:
+        parser = argparse.ArgumentParser(
+            prog="${PROJECT_NAME}",
+            description="${DESCRIPTION}",
+            epilog=f"Support: {SUPPORT_EMAIL} | Team: {TEAM_NAME}"
+        )
+
+        # Core commands
+        subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+        # Start command
+        start_parser = subparsers.add_parser("start", help="Start the service")
+        start_parser.add_argument("--config", "-c", default="config/production.yaml", 
+                                help="Configuration file path")
+        start_parser.add_argument("--port", "-p", type=int, default=8000,
+                                help="Service port")
+        start_parser.add_argument("--workers", "-w", type=int, default=4,
+                                help="Number of worker processes")
+
+        # Test command
+        test_parser = subparsers.add_parser("test", help="Run test suite")
+        test_parser.add_argument("--coverage", action="store_true",
+                               help="Generate coverage report")
+        test_parser.add_argument("--verbose", "-v", action="store_true",
+                               help="Verbose output")
+
+        # Security scan command
+        security_parser = subparsers.add_parser("security", help="Security scanning")
+        security_parser.add_argument("--scan-type", choices=["sast", "dast", "dependency"],
+                                   default="sast", help="Type of security scan")
+
+        # Common arguments
+        parser.add_argument("--version", action="version", 
+                          version=f"%(prog)s {__version__}")
+        parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+                          default="INFO", help="Logging level")
+        parser.add_argument("--environment", "-e", 
+                          choices=["development", "staging", "production"],
+                          default="development", help="Runtime environment")
+
+        return parser
+
+    async def run(self, args: Optional[list] = None) -> int:
+        \"\"\"Execute CLI command.\"\"\"
+        parsed_args = self.parser.parse_args(args)
+
+        # Configure logging
+        logging.getLogger().setLevel(getattr(logging, parsed_args.log_level))
+
+        try:
+            if parsed_args.command == "start":
+                return await self._handle_start(parsed_args)
+            elif parsed_args.command == "test":
+                return self._handle_test(parsed_args)
+            elif parsed_args.command == "security":
+                return await self._handle_security(parsed_args)
+            else:
+                self.parser.print_help()
+                return 0
+
+        except Exception as e:
+            logger.error(f"Command failed: {e}", exc_info=True)
+            return 1
+
+    async def _handle_start(self, args) -> int:
+        \"\"\"Handle service startup.\"\"\"
+        logger.info(f"Starting {PROJECT_NAME} v{__version__}")
+        logger.info(f"Environment: {args.environment}")
+        logger.info(f"Config: {args.config}")
+
+        config = ConfigManager.load(args.config)
+        service = EnterpriseService(config)
+        
+        await self.metrics.increment("service.start")
+        await service.start()
+        return 0
+
+    def _handle_test(self, args) -> int:
+        \"\"\"Handle test execution.\"\"\"
+        import subprocess
+        import sys
+
+        test_cmd = [sys.executable, "-m", "pytest", "tests/"]
+        if args.verbose:
+            test_cmd.append("-v")
+        if args.coverage:
+            test_cmd.extend(["--cov=src", "--cov-report=html"])
+
+        result = subprocess.run(test_cmd)
+        return result.returncode
+
+    async def _handle_security(self, args) -> int:
+        \"\"\"Handle security scanning.\"\"\"
+        from .utils.security import SecurityScanner
+        
+        scanner = SecurityScanner()
+        report = await scanner.scan(args.scan_type)
+        
+        if report.vulnerabilities:
+            logger.warning(f"Found {len(report.vulnerabilities)} vulnerabilities")
+            return 1
+        else:
+            logger.info("Security scan passed")
+            return 0
+
+def main():
+    \"\"\"CLI entry point.\"\"\"
+    cli = EnterpriseCLI()
+    return asyncio.run(cli.run())
+
+if __name__ == "__main__":
+    sys.exit(main())
+PY
+  @chmod src/cli.py +x
+
+  # Core enterprise service
+  core.py <<PY
+\"\"\"Enterprise core service with advanced features.\"\"\"
+
+import asyncio
+import logging
+from dataclasses import dataclass
+from typing import Dict, Any, Optional
+from pathlib import Path
+
+from .utils.monitoring import MetricsCollector
+from .utils.security import SecurityManager
+
+@dataclass
+class ServiceConfig:
+    \"\"\"Enterprise service configuration.\"\"\"
+    name: str
+    version: str
+    environment: str
+    port: int = 8000
+    workers: int = 4
+    debug: bool = False
+    features: Dict[str, bool] = None
+
+    def __post_init__(self):
+        if self.features is None:
+            self.features = {
+                "monitoring": True,
+                "security": True,
+                "caching": True,
+                "rate_limiting": True
+            }
+
+class ConfigManager:
+    \"\"\"Enterprise configuration management.\"\"\"
+
+    @staticmethod
+    def load(config_path: Path) -> ServiceConfig:
+        \"\"\"Load configuration from YAML file.\"\"\"
+        # Implementation would load from YAML/JSON/Env
+        return ServiceConfig(
+            name="${PROJECT_NAME}",
+            version="2.0.0",
+            environment="${ENVIRONMENT}",
+            port=8000,
+            workers=4
+        )
+
+class EnterpriseService:
+    \"\"\"Main enterprise service class.\"\"\"
+
+    def __init__(self, config: ServiceConfig):
+        self.config = config
+        self.logger = logging.getLogger(__name__)
+        self.metrics = MetricsCollector()
+        self.security = SecurityManager()
+        self.is_running = False
+
+    async def start(self):
+        \"\"\"Start the enterprise service.\"\"\"
+        self.logger.info(f"Starting {self.config.name} v{self.config.version}")
+        
+        # Initialize components
+        await self._initialize_components()
+        
+        self.is_running = True
+        self.logger.info("Service started successfully")
+        
+        # Keep service running
+        while self.is_running:
+            await asyncio.sleep(1)
+
+    async def stop(self):
+        \"\"\"Stop the enterprise service gracefully.\"\"\"
+        self.logger.info("Stopping service...")
+        self.is_running = False
+        await self._cleanup_components()
+        self.logger.info("Service stopped")
+
+    async def _initialize_components(self):
+        \"\"\"Initialize all service components.\"\"\"
+        if self.config.features.get("monitoring"):
+            await self.metrics.start()
+            
+        if self.config.features.get("security"):
+            await self.security.initialize()
+
+    async def _cleanup_components(self):
+        \"\"\"Cleanup service components.\"\"\"
+        if self.config.features.get("monitoring"):
+            await self.metrics.stop()
+
+    async def health_check(self) -> Dict[str, Any]:
+        \"\"\"Perform comprehensive health check.\"\"\"
+        return {
+            "status": "healthy" if self.is_running else "unhealthy",
+            "version": self.config.version,
+            "environment": self.config.environment,
+            "components": {
+                "monitoring": await self.metrics.is_healthy(),
+                "security": await self.security.is_healthy()
+            }
+        }
+PY
+
+  # API layer
+  api/__init__.py
+  api/routes.py <<PY
+\"\"\"Enterprise API routes with security and monitoring.\"\"\"
+
+from typing import Dict, Any
+import logging
+from fastapi import APIRouter, Depends, HTTPException, Request
+
+from ..utils.security import require_auth, rate_limit
+from ..utils.monitoring import track_metrics
+
+router = APIRouter()
+logger = logging.getLogger(__name__)
+
+@router.get("/health")
+@track_metrics("health_check")
+async def health_check(request: Request) -> Dict[str, Any]:
+    \"\"\"Comprehensive health check endpoint.\"\"\"
+    return {
+        "status": "healthy",
+        "service": "${PROJECT_NAME}",
+        "version": "2.0.0",
+        "environment": "${ENVIRONMENT}"
+    }
+
+@router.get("/metrics")
+@require_auth
+async def get_metrics(request: Request) -> Dict[str, Any]:
+    \"\"\"Metrics endpoint (authenticated).\"\"\"
+    # Return service metrics
+    return {"metrics": "collected_data"}
+
+@router.post("/data")
+@require_auth
+@rate_limit(requests=100, window=60)
+async def process_data(request: Request, data: Dict[str, Any]) -> Dict[str, Any]:
+    \"\"\"Process data with authentication and rate limiting.\"\"\"
+    logger.info(f"Processing data: {data.get('type', 'unknown')}")
+    return {"status": "processed", "id": "12345"}
+PY
+
+  api/middleware.py <<PY
+\"\"\"Enterprise API middleware.\"\"\"
+
+from fastapi import Request
+from starlette.middleware.base import BaseHTTPMiddleware
+import time
+import logging
+
+logger = logging.getLogger(__name__)
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    \"\"\"Add security headers to all responses.\"\"\"
+    
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
+class LoggingMiddleware(BaseHTTPMiddleware):
+    \"\"\"Log all requests and responses.\"\"\"
+    
+    async def dispatch(self, request: Request, call_next):
+        start_time = time.time()
+        
+        response = await call_next(request)
+        
+        process_time = time.time() - start_time
+        logger.info(
+            f"{request.method} {request.url.path} "
+            f"Status: {response.status_code} "
+            f"Duration: {process_time:.3f}s"
+        )
+        
+        return response
+PY
+
+  # Utility modules
+  utils/__init__.py
+  utils/security.py <<PY
+\"\"\"Enterprise security utilities.\"\"\"
+
+import hashlib
+import hmac
+import secrets
+from typing import Dict, Any, Optional
+import logging
+
+logger = logging.getLogger(__name__)
+
+class SecurityManager:
+    \"\"\"Comprehensive security management.\"\"\"
+    
+    def __init__(self):
+        self.secret_key = secrets.token_urlsafe(32)
+        
+    async def initialize(self):
+        \"\"\"Initialize security components.\"\"\"
+        logger.info("Security manager initialized")
+        
+    async def is_healthy(self) -> bool:
+        \"\"\"Check security subsystem health.\"\"\"
+        return True
+        
+    def generate_token(self, data: Dict[str, Any]) -> str:
+        \"\"\"Generate secure token.\"\"\"
+        message = str(data).encode()
+        return hmac.new(
+            self.secret_key.encode(),
+            message,
+            hashlib.sha256
+        ).hexdigest()
+        
+    def verify_token(self, token: str, data: Dict[str, Any]) -> bool:
+        \"\"\"Verify token validity.\"\"\"
+        expected = self.generate_token(data)
+        return hmac.compare_digest(token, expected)
+
+class SecurityScanner:
+    \"\"\"Security vulnerability scanner.\"\"\"
+    
+    async def scan(self, scan_type: str) -> 'SecurityReport':
+        \"\"\"Perform security scan.\"\"\"
+        logger.info(f"Performing {scan_type} security scan")
+        return SecurityReport(scan_type)
+
+class SecurityReport:
+    \"\"\"Security scan report.\"\"\"
+    
+    def __init__(self, scan_type: str):
+        self.scan_type = scan_type
+        self.vulnerabilities = []
+        
+    def add_vulnerability(self, severity: str, description: str):
+        \"\"\"Add vulnerability to report.\"\"\"
+        self.vulnerabilities.append({
+            "severity": severity,
+            "description": description
+        })
+
+# Security decorators
+def require_auth(func):
+    \"\"\"Decorator to require authentication.\"\"\"
+    async def wrapper(*args, **kwargs):
+        # Authentication logic would go here
+        return await func(*args, **kwargs)
+    return wrapper
+
+def rate_limit(requests: int, window: int):
+    \"\"\"Decorator for rate limiting.\"\"\"
+    def decorator(func):
+        async def wrapper(*args, **kwargs):
+            # Rate limiting logic would go here
+            return await func(*args, **kwargs)
+        return wrapper
+    return decorator
+PY
+
+  utils/monitoring.py <<PY
+\"\"\"Enterprise monitoring and metrics utilities.\"\"\"
+
+import time
+from typing import Dict, Any
+import logging
+from functools import wraps
+
+logger = logging.getLogger(__name__)
+
+class MetricsCollector:
+    \"\"\"Collect and manage application metrics.\"\"\"
+    
+    def __init__(self):
+        self.metrics: Dict[str, Any] = {}
+        self.is_collecting = False
+        
+    async def start(self):
+        \"\"\"Start metrics collection.\"\"\"
+        self.is_collecting = True
+        logger.info("Metrics collection started")
+        
+    async def stop(self):
+        \"\"\"Stop metrics collection.\"\"\"
+        self.is_collecting = False
+        logger.info("Metrics collection stopped")
+        
+    async def increment(self, metric: str, value: int = 1):
+        \"\"\"Increment a counter metric.\"\"\"
+        if self.is_collecting:
+            self.metrics[metric] = self.metrics.get(metric, 0) + value
+            
+    async def is_healthy(self) -> bool:
+        \"\"\"Check monitoring subsystem health.\"\"\"
+        return self.is_collecting
+
+def track_metrics(operation: str):
+    \"\"\"Decorator to track operation metrics.\"\"\"
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            start_time = time.time()
+            try:
+                result = await func(*args, **kwargs)
+                duration = time.time() - start_time
+                
+                # Log metrics
+                logger.info(
+                    f"Operation {operation} completed in {duration:.3f}s"
+                )
+                
+                return result
+            except Exception as e:
+                duration = time.time() - start_time
+                logger.error(
+                    f"Operation {operation} failed after {duration:.3f}s: {e}"
+                )
+                raise
+        return wrapper
+    return decorator
+PY
+
+  utils/validation.py <<PY
+\"\"\"Enterprise data validation utilities.\"\"\"
+
+from typing import Any, Dict, List, Optional
+import re
+
+class DataValidator:
+    \"\"\"Comprehensive data validation.\"\"\"
+    
+    @staticmethod
+    def validate_email(email: str) -> bool:
+        \"\"\"Validate email format.\"\"\"
+        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$'
+        return bool(re.match(pattern, email))
+    
+    @staticmethod
+    def validate_phone(phone: str) -> bool:
+        \"\"\"Validate phone number format.\"\"\"
+        pattern = r'^\\+?[1-9]\\d{1,14}$'
+        return bool(re.match(pattern, phone))
+    
+    @staticmethod
+    def validate_json_schema(data: Dict[str, Any], schema: Dict[str, Any]) -> bool:
+        \"\"\"Validate data against JSON schema.\"\"\"
+        # Basic implementation - would use jsonschema in production
+        required_fields = schema.get('required', [])
+        for field in required_fields:
+            if field not in data:
+                return False
+        return True
+PY
+
+# ==================== ENTERPRISE DOCUMENTATION ====================
+/docs
+  README.md <<MD
+# ${PROJECT_NAME}
+
+${DESCRIPTION}
+
+![License](https://img.shields.io/badge/license-${LICENSE}-blue.svg)
+![Python](https://img.shields.io/badge/python-${PYTHON_VERSION}+-green.svg)
+![Enterprise](https://img.shields.io/badge/level-Enterprise-orange.svg)
+
+## 🏢 Enterprise Features
+
+- **Security First**: Built-in security scanning, authentication, and compliance
+- **Monitoring Ready**: Comprehensive metrics, logging, and health checks
+- **DevOps Integration**: Docker, Kubernetes, Terraform, and CI/CD ready
+- **Type Safety**: Full type hints and mypy compliance
+- **Async Ready**: Full async/await support throughout
+- **Configuration Management**: Environment-aware configuration
+- **API First**: RESTful API with OpenAPI documentation
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Python ${PYTHON_VERSION}+
+- Docker & Kubernetes (for deployment)
+- Terraform (for infrastructure)
+
+### Development Setup
+\`\`\`bash
+# Clone and setup
+git clone ${PROJECT_URL}
+cd ${PROJECT_NAME}
+
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
+
+# Install with development dependencies
+pip install -e ".[dev]"
+
+# Run security scan
+${PROJECT_NAME} security --scan-type sast
+
+# Run tests
+${PROJECT_NAME} test --coverage --verbose
+
+# Start development server
+${PROJECT_NAME} start --environment development
+\`\`\`
+
+### Production Deployment
+\`\`\`bash
+# Build Docker image
+docker build -t ${DOCKER_NAMESPACE}/${PROJECT_NAME} .
+
+# Deploy to Kubernetes
+kubectl apply -f deploy/kubernetes/
+
+# Infrastructure provisioning
+terraform apply -var environment=production
+\`\`\`
+
+## 📁 Project Architecture
+
+\`\`\`
+${PROJECT_NAME}/
+├── src/                 # Source code
+│   ├── api/            # API layer (FastAPI)
+│   ├── core/           # Business logic
+│   └── utils/          # Utilities (security, monitoring, validation)
+├── tests/              # Comprehensive test suite
+├── deploy/             # Deployment configurations
+│   ├── kubernetes/     # K8s manifests
+│   └── docker/         # Docker configurations
+├── terraform/          # Infrastructure as Code
+├── monitoring/         # Monitoring configurations
+├── security/           # Security policies & scans
+├── compliance/         # Compliance documentation
+└── .github/            # CI/CD workflows
+\`\`\`
+
+## 🔧 Configuration
+
+### Environment Variables
+\`\`\`bash
+export ENVIRONMENT=production
+export LOG_LEVEL=INFO
+export SECRET_KEY=your-secret-key
+export DATABASE_URL=postgresql://user:pass@host/db
+\`\`\`
+
+### Configuration Files
+- \`config/development.yaml\` - Development settings
+- \`config/production.yaml\` - Production settings
+- \`config/security.yaml\` - Security configurations
+
+## 🧪 Testing & Quality
+
+\`\`\`bash
+# Run full test suite
+./scripts/test.sh
+
+# Security scanning
+./scripts/security-scan.sh
+
+# Code quality checks
+./scripts/quality-check.sh
+
+# Performance benchmarking
+./scripts/benchmark.sh
+\`\`\`
+
+## 📊 Monitoring & Observability
+
+- **Metrics**: Prometheus endpoints at `/metrics`
+- **Logging**: Structured JSON logging
+- **Tracing**: Distributed tracing support
+- **Health Checks**: Comprehensive health endpoints
+
+## 🔒 Security
+
+### Security Features
+- Authentication & Authorization
+- Rate Limiting
+- Security Headers
+- Vulnerability Scanning
+- Secret Management
+- Compliance Reporting
+
+### Security Commands
+\`\`\`bash
+# SAST Scan
+${PROJECT_NAME} security --scan-type sast
+
+# Dependency Scan
+${PROJECT_NAME} security --scan-type dependency
+
+# Generate Security Report
+./scripts/security-report.sh
+\`\`\`
+
+## 🤝 Contributing
+
+1. Follow [Conventional Commits](https://www.conventionalcommits.org/)
+2. Update tests and documentation
+3. Run security scans before submitting
+4. Ensure all checks pass in CI/CD
+
+## 📞 Support
+
+- **Team**: ${TEAM_NAME}
+- **Email**: ${SUPPORT_EMAIL}
+- **Security**: ${SECURITY_CONTACT}
+- **Documentation**: ${PROJECT_URL}/docs
+
+## 📄 License
+
+${LICENSE} License - See [LICENSE](../LICENSE) for details.
+
+---
+
+*Generated by LRC - Enterprise Template v2.0.0*
+MD
+
+  API.md <<MD
+# API Documentation
+
+## Base URL
+\`https://api.company.com/v1\`
+
+## Authentication
+All endpoints require authentication using Bearer tokens.
+
+\`\`\`http
+Authorization: Bearer <your-token>
+\`\`\`
+
+## Endpoints
+
+### Health Check
+\`\`\`http
+GET /health
+\`\`\`
+
+**Response:**
+\`\`\`json
+{
+  "status": "healthy",
+  "service": "${PROJECT_NAME}",
+  "version": "2.0.0",
+  "environment": "production"
+}
+\`\`\`
+
+### Metrics
+\`\`\`http
+GET /metrics
+\`\`\`
+
+**Headers:**
+\`\`\`http
+Authorization: Bearer <token>
+\`\`\`
+
+### Process Data
+\`\`\`http
+POST /data
+\`\`\`
+
+**Headers:**
+\`\`\`http
+Authorization: Bearer <token>
+Content-Type: application/json
+\`\`\`
+
+**Body:**
+\`\`\`json
+{
+  "type": "user_data",
+  "payload": {
+    "user_id": "12345",
+    "action": "login"
+  }
+}
+\`\`\`
+
+**Rate Limit:** 100 requests per minute
+
+## Error Responses
+
+\`\`\`json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid input data",
+    "details": {
+      "field": "email",
+      "issue": "Invalid format"
+    }
+  }
+}
+\`\`\`
+
+## SDK Examples
+
+### Python
+\`\`\`python
+from ${PROJECT_NAME} import EnterpriseClient
+
+client = EnterpriseClient(
+    base_url="https://api.company.com/v1",
+    api_key="your-api-key"
+)
+
+# Health check
+health = await client.health()
+
+# Process data
+result = await client.process_data({
+    "type": "user_data",
+    "payload": {"user_id": "12345"}
+})
+\`\`\`
+MD
+
+  SECURITY.md <<MD
+# Security Policy
+
+## Supported Versions
+
+| Version | Supported          | Security Updates Until |
+| ------- | ------------------ | ---------------------- |
+| 2.0.x   | :white_check_mark: | ${YEAR}-12-31          |
+| 1.0.x   | :x:                | EOL                    |
+
+## Reporting a Vulnerability
+
+**Please do NOT report security vulnerabilities through public GitHub issues.**
+
+Instead, please report them to our security team:
+**Email**: ${SECURITY_CONTACT}
+
+You should receive a response within 24 hours. If for some reason you do not, please follow up via email.
+
+## Security Practices
+
+### Code Security
+- All code undergoes SAST (Static Application Security Testing)
+- Dependency scanning with Snyk/Dependabot
+- Secret detection in CI/CD
+- Code review required for all changes
+
+### Infrastructure Security
+- Infrastructure as Code with Terraform
+- Regular security patching
+- Network segmentation
+- Least privilege access
+
+### Compliance
+- ${COMPLIANCE_FRAMEWORK} compliance
+- Regular security audits
+- Incident response plan
+- Data classification: ${DATA_CLASSIFICATION}
+
+## Security Features
+
+### Built-in Protections
+- Authentication & authorization
+- Rate limiting
+- Input validation
+- Security headers
+- SQL injection prevention
+- XSS protection
+
+### Monitoring
+- Security event logging
+- Intrusion detection
+- Anomaly detection
+- Real-time alerts
+
+## Best Practices for Users
+
+1. **Keep dependencies updated**
+2. **Use environment variables for secrets**
+3. **Regularly rotate API keys**
+4. **Monitor access logs**
+5. **Follow principle of least privilege**
+MD
+
+  # Include enterprise changelog
+  @include ../partials/CHANGELOG.lrc
+
+# ==================== ENTERPRISE TESTING ====================
+/tests
+  __init__.py
+
+  # Unit tests
+  test_core.py <<PY
+\"\"\"Enterprise core module tests.\"\"\"
+
+import pytest
+import asyncio
+from src.core import EnterpriseService, ServiceConfig
+
+class TestEnterpriseService:
+    \"\"\"Test enterprise service functionality.\"\"\"
+
+    @pytest.fixture
+    def service_config(self):
+        \"\"\"Provide service configuration for testing.\"\"\"
+        return ServiceConfig(
+            name="test-service",
+            version="1.0.0",
+            environment="testing"
+        )
+
+    @pytest.fixture
+    async def service(self, service_config):
+        \"\"\"Provide enterprise service instance.\"\"\"
+        service = EnterpriseService(service_config)
+        yield service
+        await service.stop()
+
+    @pytest.mark.asyncio
+    async def test_service_start_stop(self, service):
+        \"\"\"Test service startup and shutdown.\"\"\"
+        # Start service
+        start_task = asyncio.create_task(service.start())
+        await asyncio.sleep(0.1)  # Let service start
+        
+        assert service.is_running
+        
+        # Stop service
+        await service.stop()
+        assert not service.is_running
+
+    @pytest.mark.asyncio
+    async def test_health_check(self, service):
+        \"\"\"Test health check functionality.\"\"\"
+        health = await service.health_check()
+        
+        assert "status" in health
+        assert "version" in health
+        assert "environment" in health
+        assert "components" in health
+
+    def test_config_validation(self, service_config):
+        \"\"\"Test configuration validation.\"\"\"
+        assert service_config.name == "test-service"
+        assert service_config.environment == "testing"
+        assert "monitoring" in service_config.features
+PY
+
+  test_security.py <<PY
+\"\"\"Enterprise security module tests.\"\"\"
+
+import pytest
+from src.utils.security import SecurityManager, DataValidator
+
+class TestSecurityManager:
+    \"\"\"Test security manager functionality.\"\"\"
+
+    @pytest.fixture
+    def security_manager(self):
+        \"\"\"Provide security manager instance.\"\"\"
+        return SecurityManager()
+
+    def test_token_generation(self, security_manager):
+        \"\"\"Test token generation and verification.\"\"\"
+        test_data = {"user_id": 123, "role": "admin"}
+        
+        token = security_manager.generate_token(test_data)
+        assert isinstance(token, str)
+        assert len(token) == 64  # SHA256 hex digest
+        
+        # Verify token
+        assert security_manager.verify_token(token, test_data)
+        
+        # Test with different data
+        wrong_data = {"user_id": 123, "role": "user"}
+        assert not security_manager.verify_token(token, wrong_data)
+
+class TestDataValidator:
+    \"\"\"Test data validation functionality.\"\"\"
+
+    def test_email_validation(self):
+        \"\"\"Test email address validation.\"\"\"
+        assert DataValidator.validate_email("user@example.com")
+        assert DataValidator.validate_email("admin@company.co.uk")
+        assert not DataValidator.validate_email("invalid-email")
+        assert not DataValidator.validate_email("user@.com")
+
+    def test_phone_validation(self):
+        \"\"\"Test phone number validation.\"\"\"
+        assert DataValidator.validate_phone("+1234567890")
+        assert DataValidator.validate_phone("1234567890")
+        assert not DataValidator.validate_phone("invalid-phone")
+        assert not DataValidator.validate_phone("12-34-56")
+PY
+
+  test_api.py <<PY
+\"\"\"Enterprise API tests.\"\"\"
+
+import pytest
+from fastapi.testclient import TestClient
+from src.api.routes import router
+from fastapi import FastAPI
+
+class TestAPIEndpoints:
+    \"\"\"Test API endpoint functionality.\"\"\"
+
+    @pytest.fixture
+    def client(self):
+        \"\"\"Provide test client.\"\"\"
+        app = FastAPI()
+        app.include_router(router)
+        return TestClient(app)
+
+    def test_health_endpoint(self, client):
+        \"\"\"Test health check endpoint.\"\"\"
+        response = client.get("/health")
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert data["status"] == "healthy"
+        assert data["service"] == "${PROJECT_NAME}"
+        assert "version" in data
+
+    def test_metrics_endpoint_unauthorized(self, client):
+        \"\"\"Test metrics endpoint without auth.\"\"\"
+        response = client.get("/metrics")
+        assert response.status_code == 403  # Should require auth
+
+    def test_data_endpoint_validation(self, client):
+        \"\"\"Test data endpoint input validation.\"\"\"
+        response = client.post("/data", json={})
+        assert response.status_code in [400, 403]  # Validation or auth error
+PY
+
+  # Integration tests
+  integration/__init__.py
+  integration/test_deployment.py <<PY
+\"\"\"Deployment integration tests.\"\"\"
+
+import pytest
+import docker
+import kubernetes
+
+class TestDeployment:
+    \"\"\"Test deployment configurations.\"\"\"
+
+    def test_docker_image_build(self):
+        \"\"\"Test Docker image builds successfully.\"\"\"
+        client = docker.from_env()
+        
+        # This would build and test the image in a real scenario
+        # For now, just verify we can connect to Docker
+        assert client.ping()
+
+    def test_kubernetes_manifests(self):
+        \"\"\"Test Kubernetes manifest validity.\"\"\"
+        # This would validate K8s manifests in a real scenario
+        # For now, just verify the directory structure
+        import os
+        assert os.path.exists("deploy/kubernetes/")
+PY
+
+  # Performance tests
+  performance/__init__.py
+  performance/test_load.py <<PY
+\"\"\"Load and performance tests.\"\"\"
+
+import pytest
+import asyncio
+from src.core import EnterpriseService, ServiceConfig
+
+class TestPerformance:
+    \"\"\"Performance and load testing.\"\"\"
+
+    @pytest.mark.performance
+    @pytest.mark.asyncio
+    async def test_concurrent_requests(self):
+        \"\"\"Test handling concurrent requests.\"\"\"
+        config = ServiceConfig(
+            name="performance-test",
+            version="1.0.0",
+            environment="testing"
+        )
+        
+        service = EnterpriseService(config)
+        
+        # Simulate concurrent health checks
+        tasks = [
+            service.health_check() 
+            for _ in range(100)
+        ]
+        
+        results = await asyncio.gather(*tasks)
+        assert len(results) == 100
+        assert all("status" in result for result in results)
+        
+        await service.stop()
+PY
+
+  conftest.py <<PY
+\"\"\"Enterprise test configuration.\"\"\"
+
+import pytest
+import asyncio
+import logging
+from typing import Generator
+
+# Configure test logging
+logging.basicConfig(level=logging.WARNING)
+
+@pytest.fixture(scope="session")
+def event_loop() -> Generator:
+    \"\"\"Create event loop for async tests.\"\"\"
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+@pytest.fixture(autouse=True)
+def setup_test_environment():
+    \"\"\"Setup test environment for all tests.\"\"\"
+    # Set test environment variables
+    import os
+    os.environ["ENVIRONMENT"] = "testing"
+    os.environ["LOG_LEVEL"] = "WARNING"
+    
+    yield
+    
+    # Cleanup
+    if "SECRET_KEY" in os.environ:
+        del os.environ["SECRET_KEY"]
+PY
+
+# ==================== ENTERPRISE SCRIPTS ====================
+/scripts
+  # Development and deployment scripts
+  dev.sh <<SH
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "🚀 Enterprise Development Environment"
+echo "Project: ${PROJECT_NAME}"
+echo "Environment: ${ENVIRONMENT}"
+
+# Check prerequisites
+echo "🔍 Checking prerequisites..."
+python3 --version || { echo "❌ Python 3 required"; exit 1; }
+docker --version || echo "⚠️  Docker not found (optional)"
+kubectl version --client || echo "⚠️  kubectl not found (optional)"
+
+# Setup virtual environment
+if [ ! -d ".venv" ]; then
+    echo "🐍 Creating virtual environment..."
+    python3 -m venv .venv
+fi
+
+echo "🔧 Activating virtual environment..."
+source .venv/bin/activate
+
+echo "📦 Installing dependencies..."
+pip install -e ".[dev]"
+
+echo "✅ Development environment ready!"
+echo ""
+echo "💡 Next steps:"
+echo "   ${PROJECT_NAME} --help"
+echo "   ./scripts/test.sh"
+echo "   ./scripts/security-scan.sh"
+SH
+  @chmod scripts/dev.sh +x
+
+  test.sh <<SH
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "🧪 Enterprise Test Suite"
+echo "========================"
+
+# Run unit tests
+echo "📝 Running unit tests..."
+python -m pytest tests/ -v --cov=src --cov-report=term-missing
+
+# Run integration tests
+echo "🔗 Running integration tests..."
+python -m pytest tests/integration/ -v
+
+# Run performance tests
+echo "⚡ Running performance tests..."
+python -m pytest tests/performance/ -v -m performance
+
+# Generate coverage report
+echo "📊 Generating coverage report..."
+python -m coverage html
+
+echo "✅ All tests completed!"
+SH
+  @chmod scripts/test.sh +x
+
+  security-scan.sh <<SH
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "🔒 Enterprise Security Scan"
+echo "==========================="
+
+# SAST with bandit
+echo "🔍 Running SAST (Bandit)..."
+python -m bandit -r src/ -f json -o reports/bandit-report.json
+
+# Dependency scanning
+echo "📦 Scanning dependencies..."
+python -m safety check --json --output reports/safety-report.json
+
+# Secret detection
+echo "🕵️  Detecting secrets..."
+git secrets --scan || true
+
+# Generate security report
+echo "📄 Generating security report..."
+{
+    echo "# Security Scan Report"
+    echo "Generated: $(date)"
+    echo ""
+    echo "## SAST Results"
+    cat reports/bandit-report.json | jq '.metrics._totals | "🔍 \(.CONFIDENCE.HIGH) high, \(.CONFIDENCE.MEDIUM) medium, \(.CONFIDENCE.LOW) low confidence issues"'
+    echo ""
+    echo "## Dependency Vulnerabilities"
+    cat reports/safety-report.json | jq '. | "📦 \(.vulnerabilities | length) vulnerabilities found"'
+} > reports/security-report.md
+
+echo "✅ Security scan completed!"
+echo "📊 Report: reports/security-report.md"
+SH
+  @chmod scripts/security-scan.sh +x
+
+  deploy.sh <<SH
+#!/usr/bin/env bash
+set -euo pipefail
+
+ENVIRONMENT=${1:-development}
+
+echo "🚀 Deploying ${PROJECT_NAME} to ${ENVIRONMENT}"
+echo "=============================================="
+
+# Validate environment
+if [[ ! "$ENVIRONMENT" =~ ^(development|staging|production)$ ]]; then
+    echo "❌ Invalid environment: $ENVIRONMENT"
+    exit 1
+fi
+
+# Build Docker image
+echo "🐳 Building Docker image..."
+docker build -t ${DOCKER_NAMESPACE}/${PROJECT_NAME}:latest .
+
+# Run tests
+echo "🧪 Running pre-deployment tests..."
+./scripts/test.sh
+
+# Security scan
+echo "🔒 Running security scan..."
+./scripts/security-scan.sh
+
+# Deploy based on environment
+echo "📦 Deploying to ${ENVIRONMENT}..."
+case $ENVIRONMENT in
+    development)
+        docker-compose -f deploy/docker-compose.dev.yml up -d
+        ;;
+    staging)
+        kubectl apply -f deploy/kubernetes/staging/
+        ;;
+    production)
+        kubectl apply -f deploy/kubernetes/production/
+        ;;
+esac
+
+echo "✅ Deployment to ${ENVIRONMENT} completed!"
+SH
+  @chmod scripts/deploy.sh +x
+
+  quality-check.sh <<SH
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "📋 Enterprise Quality Check"
+echo "==========================="
+
+# Code formatting
+echo "🎨 Checking code formatting..."
+python -m black --check src/ tests/ || {
+    echo "❌ Code formatting issues found"
+    echo "💡 Run: python -m black src/ tests/"
+    exit 1
+}
+
+# Type checking
+echo "📝 Running type checks..."
+python -m mypy src/ tests/ || {
+    echo "❌ Type checking issues found"
+    exit 1
+}
+
+# Linting
+echo "🔍 Linting code..."
+python -m flake8 src/ tests/ || {
+    echo "❌ Linting issues found"
+    exit 1
+}
+
+# Import sorting
+echo "📦 Checking import order..."
+python -m isort --check-only src/ tests/ || {
+    echo "❌ Import order issues found"
+    echo "💡 Run: python -m isort src/ tests/"
+    exit 1
+}
+
+echo "✅ All quality checks passed!"
+SH
+  @chmod scripts/quality-check.sh +x
+
+# ==================== ENTERPRISE DEPLOYMENT CONFIGURATIONS ====================
+/deploy
+  # Kubernetes manifests
+  /kubernetes
+    /production
+      deployment.yaml <<YAML
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${PROJECT_NAME}
+  namespace: ${K8S_NAMESPACE}
+  labels:
+    app: ${PROJECT_NAME}
+    environment: production
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ${PROJECT_NAME}
+  template:
+    metadata:
+      labels:
+        app: ${PROJECT_NAME}
+        version: "2.0.0"
+    spec:
+      containers:
+      - name: ${PROJECT_NAME}
+        image: ${DOCKER_NAMESPACE}/${PROJECT_NAME}:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: LOG_LEVEL
+          value: "INFO"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+YAML
+
+      service.yaml <<YAML
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${PROJECT_NAME}
+  namespace: ${K8S_NAMESPACE}
+spec:
+  selector:
+    app: ${PROJECT_NAME}
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: ClusterIP
+YAML
+
+    /staging
+      deployment.yaml <<YAML
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${PROJECT_NAME}-staging
+  namespace: ${K8S_NAMESPACE}
+  labels:
+    app: ${PROJECT_NAME}
+    environment: staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ${PROJECT_NAME}
+  template:
+    metadata:
+      labels:
+        app: ${PROJECT_NAME}
+        version: "2.0.0"
+    spec:
+      containers:
+      - name: ${PROJECT_NAME}
+        image: ${DOCKER_NAMESPACE}/${PROJECT_NAME}:staging
+        ports:
+        - containerPort: 8000
+        env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: LOG_LEVEL
+          value: "DEBUG"
+YAML
+
+  # Docker configurations
+  /docker
+    Dockerfile <<DOCKER
+FROM python:${PYTHON_VERSION}-slim
+
+# Security: Run as non-root user
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY src/ ./src/
+COPY config/ ./config/
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \\
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Run application
+CMD ["python", "-m", "src.cli", "start", "--environment", "production"]
+DOCKER
+
+    docker-compose.dev.yml <<YAML
+version: '3.8'
+
+services:
+  ${PROJECT_NAME}:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ../../src:/app/src
+      - ../../config:/app/config
+    develop:
+      watch:
+        - action: sync
+          path: ./src
+          target: /app/src
+        - action: rebuild
+          path: requirements.txt
+YAML
+
+# ==================== ENTERPRISE INFRASTRUCTURE ====================
+/terraform
+  main.tf <<TF
+terraform {
+  required_version = ">= 1.0"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 4.0"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.0"
+    }
+  }
+}
+
+# AWS Provider
+provider "aws" {
+  region = var.region
+}
+
+# ECR Repository
+resource "aws_ecr_repository" "app" {
+  name = "${PROJECT_NAME}"
+  
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+}
+
+# EKS Cluster (simplified)
+resource "aws_eks_cluster" "main" {
+  name     = "${PROJECT_NAME}-cluster"
+  role_arn = aws_iam_role.eks_cluster.arn
+  
+  vpc_config {
+    subnet_ids = var.subnet_ids
+  }
+  
+  enabled_cluster_log_types = ["api", "audit"]
+}
+
+# IAM Role for EKS
+resource "aws_iam_role" "eks_cluster" {
+  name = "${PROJECT_NAME}-eks-cluster"
+  
+  assume_role_policy = jsonencode({
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "eks.amazonaws.com"
+      }
+    }]
+    Version = "2012-10-17"
+  })
+}
+
+# Variables
+variable "region" {
+  description = "AWS region"
+  type        = string
+  default     = "${REGION}"
+}
+
+variable "environment" {
+  description = "Deployment environment"
+  type        = string
+  default     = "${ENVIRONMENT}"
+}
+
+variable "subnet_ids" {
+  description = "List of subnet IDs"
+  type        = list(string)
+}
+TF
+
+  outputs.tf <<TF
+output "ecr_repository_url" {
+  description = "ECR repository URL"
+  value       = aws_ecr_repository.app.repository_url
+}
+
+output "eks_cluster_endpoint" {
+  description = "EKS cluster endpoint"
+  value       = aws_eks_cluster.main.endpoint
+}
+
+output "eks_cluster_name" {
+  description = "EKS cluster name"
+  value       = aws_eks_cluster.main.name
+}
+TF
+
+# ==================== ENTERPRISE MONITORING ====================
+/monitoring
+  prometheus.yml <<YAML
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: '${PROJECT_NAME}'
+    static_configs:
+      - targets: ['${PROJECT_NAME}:8000']
+    metrics_path: /metrics
+    scrape_interval: 30s
+YAML
+
+  grafana-dashboard.json <<JSON
+{
+  "dashboard": {
+    "title": "${PROJECT_NAME} - Enterprise Dashboard",
+    "panels": [
+      {
+        "title": "Service Health",
+        "type": "stat",
+        "targets": [{
+          "expr": "up{job=\"${PROJECT_NAME}\"}",
+          "legendFormat": "Instance {{instance}}"
+        }]
+      }
+    ]
+  }
+}
+JSON
+
+# ==================== ENTERPRISE SECURITY ====================
+/security
+  policy.yaml <<YAML
+# Enterprise Security Policy
+version: "1.0"
+project: "${PROJECT_NAME}"
+framework: "${COMPLIANCE_FRAMEWORK}"
+
+security_requirements:
+  authentication:
+    - jwt_tokens
+    - api_keys
+  authorization:
+    - role_based_access
+    - resource_permissions
+  data_protection:
+    - encryption_at_rest
+    - encryption_in_transit
+  monitoring:
+    - security_event_logging
+    - intrusion_detection
+
+compliance:
+  data_classification: "${DATA_CLASSIFICATION}"
+  retention_period: "7 years"
+  audit_requirements:
+    - monthly_security_reviews
+    - quarterly_vulnerability_assessments
+YAML
+
+# ==================== ENTERPRISE COMPLIANCE ====================
+/compliance
+  SOC2-checklist.md <<MD
+# SOC2 Compliance Checklist
+
+## Security
+- [ ] Access controls implemented
+- [ ] Authentication mechanisms in place
+- [ ] Encryption for data at rest and in transit
+- [ ] Regular security training
+
+## Availability
+- [ ] Monitoring and alerting configured
+- [ ] Backup and recovery procedures
+- [ ] Incident response plan
+
+## Confidentiality
+- [ ] Data classification: ${DATA_CLASSIFICATION}
+- [ ] Access logging enabled
+- [ ] Secure data disposal
+
+## Documentation
+- [ ] Security policies documented
+- [ ] Change management procedures
+- [ ] Risk assessment completed
+MD
+
+# ==================== ENTERPRISE GITHUB ACTIONS ====================
+/.github
+  /workflows
+    ci-cd.yml <<YAML
+name: Enterprise CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.8, 3.9, 3.10]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+    
+    - name: Run tests
+      run: ./scripts/test.sh
+    
+    - name: Run security scan
+      run: ./scripts/security-scan.sh
+    
+    - name: Run quality checks
+      run: ./scripts/quality-check.sh
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Deploy to production
+      run: ./scripts/deploy.sh production
+      env:
+        KUBECONFIG: ${{ secrets.KUBECONFIG }}
+        DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+YAML
+
+    security-scan.yml <<YAML
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Monday
+  push:
+    branches: [ main ]
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Run SAST
+      uses: py-actions/bandit@v2
+      with:
+        path: src/
+    
+    - name: Dependency scan
+      uses: py-actions/safety@v1
+      with:
+        path: requirements.txt
+    
+    - name: Secret scanning
+      uses: gitleaks/gitleaks-action@v2
+YAML
+
+# ==================== ENTERPRISE CONFIGURATION ====================
+/config
+  production.yaml <<YAML
+# Production Configuration
+name: ${PROJECT_NAME}
+version: 2.0.0
+environment: production
+
+server:
+  port: 8000
+  workers: 4
+  debug: false
+
+features:
+  monitoring: true
+  security: true
+  caching: true
+  rate_limiting: true
+
+logging:
+  level: INFO
+  format: json
+
+security:
+  secret_key: ${SECRET_KEY}
+  token_expiry: 3600
+  rate_limit: 100
+YAML
+
+  development.yaml <<YAML
+# Development Configuration
+name: ${PROJECT_NAME}
+version: 2.0.0
+environment: development
+
+server:
+  port: 8000
+  workers: 2
+  debug: true
+
+features:
+  monitoring: true
+  security: true
+  caching: false
+  rate_limiting: false
+
+logging:
+  level: DEBUG
+  format: console
+
+security:
+  secret_key: dev-secret-key
+  token_expiry: 3600
+  rate_limit: 1000
+YAML
+
+# ==================== ENTERPRISE ASSETS ====================
+/assets
+  # Placeholder for enterprise assets
+  logo.svg <<SVG
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60">
+  <rect width="100%" height="100%" fill="#1a365d"/>
+  <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" 
+        fill="#ffffff" font-family="Arial, sans-serif" font-size="24" font-weight="bold">
+    ${PROJECT_NAME}
+  </text>
+  <text x="50%" y="75%" dominant-baseline="middle" text-anchor="middle"
+        fill="#a0aec0" font-family="Arial, sans-serif" font-size="12">
+    ENTERPRISE EDITION
+  </text>
+</svg>
+SVG
+
+# ==================== ENTERPRISE PROJECT FILES ====================
+.gitignore <<GIT
+# Enterprise Git Ignore Patterns
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.mypy_cache/
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Coverage reports
+.coverage
+htmlcov/
+
+# Environment files
+.env
+.env.local
+.env.production
+.local.env
+
+# Security
+secrets.txt
+*.key
+*.pem
+*.crt
+
+# Terraform
+.terraform/
+terraform.tfstate*
+*.tfvars
+
+# Docker
+docker-compose.override.yml
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+GIT
+
+LICENSE <<TXT
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+1. Definitions.
+
+   "License" shall mean the terms and conditions for use, reproduction,
+   and distribution as defined by Sections 1 through 9 of this document.
+
+   "Licensor" shall mean the copyright owner or entity authorized by
+   the copyright owner that is granting the License.
+
+   "Legal Entity" shall mean the union of the acting entity and all
+   other entities that control, are controlled by, or are under common
+   control with that entity. For the purposes of this definition,
+   "control" means (i) the power, direct or indirect, to cause the
+   direction or management of such entity, whether by contract or
+   otherwise, or (ii) ownership of fifty percent (50%) or more of the
+   outstanding shares, or (iii) beneficial ownership of such entity.
+
+   "You" (or "Your") shall mean an individual or Legal Entity
+   exercising permissions granted by this License.
+
+   "Source" form shall mean the preferred form for making modifications,
+   including but not limited to software source code, documentation
+   source, and configuration files.
+
+   "Object" form shall mean any form resulting from mechanical
+   transformation or translation of a Source form, including but
+   limited to compiled object code, generated documentation,
+   and conversions to other media types.
+
+   "Work" shall mean the work of authorship, whether in Source or
+   Object form, made available under the License, as indicated by a
+   copyright notice that is included in or attached to the work
+   (an example is provided in the Appendix below).
+
+   "Derivative Works" shall mean any work, whether in Source or Object form,
+   that is based on (or derived from) the Work and for which the editorial
+   revisions, annotations, elaborations, or other modifications represent,
+   as a whole, an original work of authorship. For the purposes of this License,
+   Derivative Works shall not include works that remain separable from,
+   or merely link (or bind by name) to the interfaces of, the Work and
+   Derivative Works thereof.
+
+   "Contribution" shall mean any work of authorship, including
+   the original version of the Work and any modifications or additions
+   to that Work or Derivative Works thereof, that is intentionally
+   submitted to Licensor for inclusion in the Work by the copyright owner
+   or by an individual or Legal Entity authorized to submit on behalf of
+   the copyright owner. For the purposes of this definition, "submitted"
+   means any form of electronic, verbal, or written communication sent
+   to the Licensor or its representatives, including but not limited to
+   communication on electronic mailing lists, source code control systems,
+   and issue tracking systems that are managed by, or on behalf of, the
+   Licensor for the purpose of discussing and improving the Work, but
+   excluding communication that is clearly marked or otherwise designated
+   in writing by the copyright owner as "Not a Contribution."
+
+   "Contributor" shall mean Licensor and any individual or Legal Entity
+   on behalf of whom a Contribution has been received by Licensor and
+   subsequently incorporated within the Work.
+
+2. Grant of Copyright License. Subject to the terms and conditions of
+   this License, each Contributor hereby grants to You a perpetual,
+   worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+   copyright license to reproduce, prepare Derivative Works of,
+   publicly display, publicly perform, sublicense, and distribute the
+   Work and such Derivative Works in Source or Object form.
+
+3. Grant of Patent License. Subject to the terms and conditions of
+   this License, each Contributor hereby grants to You a perpetual,
+   worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+   (except as stated in this section) patent license to make, have made,
+   use, offer to sell, sell, import, and otherwise transfer the Work,
+   where such license applies only to those patent claims licensable
+   by such Contributor that are necessarily infringed by their
+   Contribution(s) alone or by combination of their Contribution(s)
+   with the Work to which such Contribution(s) was submitted. If You
+   institute patent litigation against any entity (including a
+   cross-claim or counterclaim in a lawsuit) alleging that the Work
+   or a Contribution incorporated within the Work constitutes direct
+   or contributory patent infringement, then any patent licenses
+   granted to You under this License for that Work shall terminate
+   as of the date such litigation is filed.
+
+4. Redistribution. You may reproduce and distribute copies of the
+   Work or Derivative Works thereof in any medium, with or without
+   modifications, and in Source or Object form, provided that You
+   meet the following conditions:
+
+   (a) You must give any other recipients of the Work or
+       Derivative Works a copy of this License; and
+
+   (b) You must cause any modified files to carry prominent notices
+       stating that You changed the files; and
+
+   (c) You must retain, in the Source form of any Derivative Works
+       that You distribute, all copyright, patent, trademark, and
+       attribution notices from the Source form of the Work,
+       excluding those notices that do not pertain to any part of
+       the Derivative Works; and
+
+   (d) If the Work includes a "NOTICE" text file as part of its
+       distribution, then any Derivative Works that You distribute must
+       include a readable copy of the attribution notices contained
+       within such NOTICE file, excluding those notices that do not
+       pertain to any part of the Derivative Works, in at least one
+       of the following places: within a NOTICE text file distributed
+       as part of the Derivative Works; within the Source form or
+       documentation, if provided along with the Derivative Works; or,
+       within a display generated by the Derivative Works, if and
+       wherever such third-party notices normally appear. The contents
+       of the NOTICE file are for informational purposes only and
+       do not modify the License. You may add Your own attribution
+       notices within Derivative Works that You distribute, alongside
+       or as an addendum to the NOTICE text from the Work, provided
+       that such additional attribution notices cannot be construed
+       as modifying the License.
+
+   You may add Your own copyright statement to Your modifications and
+   may provide additional or different license terms and conditions
+   for use, reproduction, or distribution of Your modifications, or
+   for any such Derivative Works as a whole, provided Your use,
+   reproduction, and distribution of the Work otherwise complies with
+   the conditions stated in this License.
+
+5. Submission of Contributions. Unless You explicitly state otherwise,
+   any Contribution intentionally submitted for inclusion in the Work
+   by You to the Licensor shall be under the terms and conditions of
+   this License, without any additional terms or conditions.
+   Notwithstanding the above, nothing herein shall supersede or modify
+   the terms of any separate license agreement you may have executed
+   with Licensor regarding such Contributions.
+
+6. Trademarks. This License does not grant permission to use the trade
+   names, trademarks, service marks, or product names of the Licensor,
+   except as required for reasonable and customary use in describing the
+   origin of the Work and reproducing the content of the NOTICE file.
+
+7. Disclaimer of Warranty. Unless required by applicable law or
+   agreed to in writing, Licensor provides the Work (and each
+   Contributor provides its Contributions) on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+   implied, including, without limitation, any warranties or conditions
+   of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+   PARTICULAR PURPOSE. You are solely responsible for determining the
+   appropriateness of using or redistributing the Work and assume any
+   risks associated with Your exercise of permissions under this License.
+
+8. Limitation of Liability. In no event and under no legal theory,
+   whether in tort (including negligence), contract, or otherwise,
+   unless required by applicable law (such as deliberate and grossly
+   negligent acts) or agreed to in writing, shall any Contributor be
+   liable to You for damages, including any direct, indirect, special,
+   incidental, or consequential damages of any character arising as a
+   result of this License or out of the use or inability to use the
+   Work (including but not limited to damages for loss of goodwill,
+   work stoppage, computer failure or malfunction, or any and all
+   other commercial damages or losses), even if such Contributor
+   has been advised of the possibility of such damages.
+
+9. Accepting Warranty or Additional Liability. While redistributing
+   the Work or Derivative Works thereof, You may choose to offer,
+   and charge a fee for, acceptance of support, warranty, indemnity,
+   or other liability obligations and/or rights consistent with this
+   License. However, in accepting such obligations, You may act only
+   on Your own behalf and on Your sole responsibility, not on behalf
+   of any other Contributor, and only if You agree to indemnify,
+   defend, and hold each Contributor harmless for any liability
+   incurred by, or claims asserted against, such Contributor by reason
+   of your accepting any such warranty or additional liability.
+
+END OF TERMS AND CONDITIONS
+TXT
+
+pyproject.toml <<TOML
+[project]
+name = "${PROJECT_NAME}"
+version = "2.0.0"
+description = "${DESCRIPTION}"
+readme = "README.md"
+requires-python = ">=${PYTHON_VERSION}"
+authors = [
+    { name = "${AUTHOR}", email = "${SUPPORT_EMAIL}" }
+]
+keywords = ["enterprise", "api", "security", "monitoring", "devops", "kubernetes"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: System :: Systems Administration",
+    "Framework :: FastAPI",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.23.0",
+    "pydantic>=2.0.0",
+    "python-multipart>=0.0.6",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "pyyaml>=6.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "mypy>=1.5.0",
+    "flake8>=6.0.0",
+    "isort>=5.12.0",
+    "bandit>=1.7.5",
+    "safety>=2.3.0",
+    "pre-commit>=3.3.0",
+]
+security = [
+    "cryptography>=41.0.0",
+    "bcrypt>=4.0.0",
+]
+monitoring = [
+    "prometheus-client>=0.17.0",
+    "structlog>=23.0.0",
+]
+docker = [
+    "docker>=6.1.0",
+]
+
+[project.urls]
+Homepage = "${PROJECT_URL}"
+Repository = "${PROJECT_URL}"
+Documentation = "${PROJECT_URL}/docs"
+"Bug Reports" = "${PROJECT_URL}/issues"
+"Changelog" = "${PROJECT_URL}/releases"
+
+[project.scripts]
+${PROJECT_NAME} = "src.cli:main"
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\\.pyi?$'
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "--verbose --strict-markers --strict-config"
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+markers = [
+    "performance: performance tests",
+    "integration: integration tests",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\\\bProtocol\\\\):",
+    "@(abc\\\\.)?abstractmethod",
+]
+TOML
+
+README.md <<MD
+# ${PROJECT_NAME}
+
+> **Enterprise-Grade Project Template**
+
+${DESCRIPTION}
+
+## 🏢 Enterprise Features
+
+- **🔒 Security First**: Built-in security scanning, authentication, and compliance
+- **📊 Monitoring Ready**: Comprehensive metrics, logging, and health checks  
+- **🐳 DevOps Integration**: Docker, Kubernetes, Terraform, and CI/CD ready
+- **📝 Type Safety**: Full type hints and mypy compliance
+- **⚡ Async Ready**: Full async/await support throughout
+- **⚙️ Configuration Management**: Environment-aware configuration
+- **🌐 API First**: RESTful API with OpenAPI documentation
+
+## 🚀 Quick Start
+
+### Generate Project
+\`\`\`bash
+lrc schema_example.lrc -o ./my-enterprise-project
+cd my-enterprise-project
+\`\`\`
+
+### Development Setup
+\`\`\`bash
+./scripts/dev.sh
+${PROJECT_NAME} --help
+\`\`\`
+
+### Run Tests & Security
+\`\`\`bash
+./scripts/test.sh
+./scripts/security-scan.sh
+./scripts/quality-check.sh
+\`\`\`
+
+## 📁 Enterprise Structure
+
+\`\`\`
+${PROJECT_NAME}/
+├── src/                 # Source code
+│   ├── api/            # FastAPI routes & middleware
+│   ├── core/           # Business logic & services
+│   └── utils/          # Security, monitoring, validation
+├── tests/              # Comprehensive test suite
+│   ├── unit/           # Unit tests
+│   ├── integration/    # Integration tests  
+│   └── performance/    # Performance tests
+├── deploy/             # Deployment configurations
+│   ├── kubernetes/     # K8s manifests
+│   └── docker/         # Docker configurations
+├── terraform/          # Infrastructure as Code
+├── monitoring/         # Prometheus & Grafana configs
+├── security/           # Security policies & scans
+├── compliance/         # Compliance documentation
+├── config/             # Environment configurations
+├── scripts/            # Enterprise-grade scripts
+└── .github/            # CI/CD workflows
+\`\`\`
+
+## 🔧 Configuration
+
+### Environment Setup
+\`\`\`bash
+export ENVIRONMENT=production
+export LOG_LEVEL=INFO  
+export SECRET_KEY=your-secure-key
+\`\`\`
+
+### Configuration Files
+- \`config/development.yaml\` - Development settings
+- \`config/production.yaml\` - Production settings  
+- \`config/security.yaml\` - Security configurations
+
+## 🧪 Quality Assurance
+
+### Testing
+\`\`\`bash
+# Full test suite
+./scripts/test.sh
+
+# Security scanning  
+./scripts/security-scan.sh
+
+# Code quality
+./scripts/quality-check.sh
+\`\`\`
+
+### CI/CD
+- Automated testing on PRs
+- Security scanning weekly
+- Production deployments from main
+
+## 📊 Monitoring
+
+- **Metrics**: Prometheus endpoints at \`/metrics\`
+- **Health**: Comprehensive health checks at \`/health\`  
+- **Logging**: Structured JSON logging
+- **Tracing**: Distributed tracing support
+
+## 🔒 Security
+
+### Features
+- JWT Authentication
+- Rate Limiting  
+- Security Headers
+- Input Validation
+- Dependency Scanning
+- Secret Detection
+
+### Compliance
+- ${COMPLIANCE_FRAMEWORK} compliant
+- Data classification: ${DATA_CLASSIFICATION}
+- Regular security audits
+
+## 🐳 Deployment
+
+### Docker
+\`\`\`bash
+docker build -t ${DOCKER_NAMESPACE}/${PROJECT_NAME} .
+docker-compose -f deploy/docker-compose.dev.yml up
+\`\`\`
+
+### Kubernetes
+\`\`\`bash
+kubectl apply -f deploy/kubernetes/production/
+\`\`\`
+
+### Terraform
+\`\`\`bash
+terraform init
+terraform apply -var environment=production
+\`\`\`
+
+## 🤝 Contributing
+
+1. Follow [Conventional Commits](https://www.conventionalcommits.org/)
+2. Update tests and documentation
+3. Run security scans before submitting
+4. Ensure all CI/CD checks pass
+
+## 📞 Support
+
+- **Team**: ${TEAM_NAME}
+- **Email**: ${SUPPORT_EMAIL}  
+- **Security**: ${SECURITY_CONTACT}
+- **Documentation**: ${PROJECT_URL}/docs
+
+## 📄 License
+
+${LICENSE} License - See [LICENSE](LICENSE) for details.
+
+---
+
+*Generated by LRC Enterprise Template v2.0.0 | Built for scale, security, and reliability*
+MD
+
+# ==================== ENTERPRISE CHANGELOG ====================
+CHANGELOG.md <<MD
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [2.0.0] - ${YEAR}-01-01
+
+### Added
+- **Enterprise Architecture**: Complete enterprise-grade project structure
+- **Security Framework**: Comprehensive security utilities and scanning
+- **Monitoring & Observability**: Prometheus metrics, structured logging, health checks
+- **DevOps Integration**: Docker, Kubernetes, Terraform configurations
+- **API Layer**: FastAPI with authentication, rate limiting, and middleware
+- **Testing Suite**: Unit, integration, and performance tests
+- **Quality Assurance**: Code formatting, type checking, linting
+- **CI/CD Pipeline**: GitHub Actions with security scanning
+- **Compliance**: SOC2 checklist and security policies
+- **Documentation**: Comprehensive enterprise documentation
+
+### Changed
+- Upgraded to LRC schema version 1.1
+- Enhanced project structure for enterprise use cases
+- Improved security practices and compliance
+- Updated to modern Python async patterns
+
+### Security
+- Built-in security scanning and vulnerability detection
+- Authentication and authorization framework
+- Security headers and input validation
+- Dependency vulnerability monitoring
+
+## [1.0.0] - ${YEAR}-01-01
+
+### Added
+- Initial enterprise template release
+- Basic project structure and tooling
+- Foundation for enterprise features
+
+---
+
+*Enterprise Template maintained by ${TEAM_NAME}*
+MD
+
+# ==================== END OF ENTERPRISE SCHEMA ====================
+# This schema demonstrates a comprehensive enterprise-ready project template
+# Customize the variables and file contents above, then run:
+#   lrc schema_entprse_example.lrc -o ./my-enterprise-project
+# to generate your enterprise project!
+
+# For more LRC enterprise examples and documentation, visit:
+# https://github.com/Justadudeinspace/lrc

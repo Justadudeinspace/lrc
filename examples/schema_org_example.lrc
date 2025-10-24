@@ -1,0 +1,1590 @@
+# examples/schema_org_example.lrc
+# Organization Project Template
+# Project: org-project-template
+# Description: Structured project template for teams and organizations
+# Version: 1.0.0
+# Schema-Version: 1.1
+# Generator: LRC v0.2.2
+# Focus: Collaboration, standards, scalability, maintainability
+
+# ==================== ORGANIZATION VARIABLES ====================
+@set ORGANIZATION=Your Organization
+@set TEAM=Engineering Team
+@set MAINTAINER_TEAM=platform-engineering@org.com
+@set PROJECT_NAME=org-project-template
+@set DESCRIPTION=Structured project template for organizational development
+@set YEAR=2025
+@set LICENSE=Apache-2.0
+@set PYTHON_VERSION=3.9
+@set CODE_OWNERS=@org/engineering-team
+@set SLACK_CHANNEL=#engineering-projects
+@set JIRA_PROJECT=ENG
+
+# ==================== ORGANIZATION STANDARDS ====================
+@ignore node_modules .venv __pycache__ .DS_Store *.tmp build dist *.egg-info
+@ignore .mypy_cache .pytest_cache .coverage htmlcov
+@ignore local_settings.py *.local.* .env.local
+
+# ==================== ORGANIZATION TEMPLATE ====================
+@template python-cli
+
+# ==================== ORGANIZATION STRUCTURE ====================
+/src
+/tests
+/docs
+/scripts
+/config
+/deploy
+/helm
+/terraform
+/.github
+/compliance
+/monitoring
+
+# ==================== ORGANIZATION SOURCE CODE ====================
+/src
+  __init__.py <<PY
+"""${PROJECT_NAME} - ${DESCRIPTION}
+
+Organization: ${ORGANIZATION}
+Team: ${TEAM}
+"""
+
+__version__ = "1.0.0"
+__organization__ = "${ORGANIZATION}"
+__team__ = "${TEAM}"
+
+import logging
+from typing import Optional
+
+# Organization-standard logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(team)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
+logger = logging.getLogger(__name__)
+logger = logging.LoggerAdapter(logger, {'team': '${TEAM}'})
+
+from .cli import main
+from .services import CoreService, DataService
+from .models import BaseModel, User, Project
+from .utils import validation, security, monitoring
+
+__all__ = [
+    "main",
+    "CoreService", 
+    "DataService",
+    "BaseModel",
+    "User",
+    "Project",
+    "validation",
+    "security", 
+    "monitoring",
+    "logger"
+]
+PY
+
+  cli.py <<PY
+#!/usr/bin/env python3
+"""${PROJECT_NAME} - Organization CLI"""
+
+import argparse
+import sys
+from pathlib import Path
+from typing import Optional
+
+from .__init__ import __version__, logger
+from .services import CoreService
+from .utils.monitoring import MetricsCollector
+
+class OrganizationCLI:
+    \"\"\"Organization-standard CLI with team features.\"\"\"
+
+    def __init__(self):
+        self.parser = self._create_parser()
+        self.metrics = MetricsCollector(team="${TEAM}")
+
+    def _create_parser(self) -> argparse.ArgumentParser:
+        parser = argparse.ArgumentParser(
+            prog="${PROJECT_NAME}",
+            description="${DESCRIPTION}",
+            epilog=f"Organization: {ORGANIZATION} | Team: {TEAM}"
+        )
+
+        # Organization-standard subcommands
+        subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+        # Development command
+        dev_parser = subparsers.add_parser("dev", help="Development operations")
+        dev_parser.add_argument("--environment", choices=["local", "staging"],
+                              default="local", help="Development environment")
+
+        # Testing command
+        test_parser = subparsers.add_parser("test", help="Run test suite")
+        test_parser.add_argument("--coverage", action="store_true",
+                               help="Generate coverage report")
+        test_parser.add_argument("--slow", action="store_true",
+                               help="Include slow tests")
+
+        # Deployment command
+        deploy_parser = subparsers.add_parser("deploy", help="Deployment operations")
+        deploy_parser.add_argument("environment", choices=["staging", "production"],
+                                 help="Deployment environment")
+        deploy_parser.add_argument("--dry-run", action="store_true",
+                                 help="Preview deployment")
+
+        # Common organization arguments
+        parser.add_argument("--version", action="version", 
+                          version=f"%(prog)s {__version__}")
+        parser.add_argument("--log-level", 
+                          choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+                          default="INFO", help="Logging level")
+        parser.add_argument("--team", default="${TEAM}",
+                          help="Team name for logging")
+
+        return parser
+
+    def run(self, args: Optional[list] = None) -> int:
+        \"\"\"Execute CLI command with organization standards.\"\"\"
+        parsed_args = self.parser.parse_args(args)
+
+        # Set team context
+        logger.extra['team'] = parsed_args.team
+
+        try:
+            if parsed_args.command == "dev":
+                return self._handle_dev(parsed_args)
+            elif parsed_args.command == "test":
+                return self._handle_test(parsed_args)
+            elif parsed_args.command == "deploy":
+                return self._handle_deploy(parsed_args)
+            else:
+                self.parser.print_help()
+                return 0
+
+        except Exception as e:
+            logger.error(f"Command failed: {e}", exc_info=True,
+                       extra={'team': parsed_args.team, 'command': parsed_args.command})
+            return 1
+
+    def _handle_dev(self, args) -> int:
+        \"\"\"Handle development operations.\"\"\"
+        logger.info(f"Starting development environment: {args.environment}")
+        
+        service = CoreService(team="${TEAM}")
+        service.initialize_development()
+        
+        logger.info("Development environment ready")
+        return 0
+
+    def _handle_test(self, args) -> int:
+        \"\"\"Handle test execution with organization standards.\"\"\"
+        import subprocess
+        
+        test_cmd = ["python", "-m", "pytest", "tests/"]
+        
+        if args.coverage:
+            test_cmd.extend(["--cov=src", "--cov-report=html", "--cov-report=term"])
+        if not args.slow:
+            test_cmd.append("-m", "not slow")
+            
+        test_cmd.append("--verbose")
+        
+        result = subprocess.run(test_cmd)
+        
+        if result.returncode == 0:
+            logger.info("All tests passed")
+        else:
+            logger.error("Tests failed")
+            
+        return result.returncode
+
+    def _handle_deploy(self, args) -> int:
+        \"\"\"Handle deployment with organization procedures.\"\"\"
+        logger.info(f"Starting deployment to {args.environment}")
+        
+        if args.dry_run:
+            logger.info("Dry run - no changes will be made")
+            return 0
+            
+        # Organization deployment logic would go here
+        logger.info(f"Deployment to {args.environment} completed")
+        return 0
+
+def main():
+    \"\"\"CLI entry point for organization.\"\"\"
+    cli = OrganizationCLI()
+    return cli.run()
+
+if __name__ == "__main__":
+    sys.exit(main())
+PY
+  @chmod src/cli.py +x
+
+  services/__init__.py
+  services/core.py <<PY
+\"\"\"Core services with organization standards.\"\"\"
+
+import logging
+from typing import Dict, Any, Optional
+from dataclasses import dataclass
+
+from ..utils.monitoring import MetricsCollector
+from ..utils.security import SecurityManager
+
+@dataclass
+class ServiceConfig:
+    \"\"\"Organization service configuration.\"\"\"
+    name: str
+    team: str
+    environment: str
+    version: str = "1.0.0"
+    log_level: str = "INFO"
+    
+    def validate(self):
+        \"\"\"Validate configuration against organization standards.\"\"\"
+        required_attrs = ['name', 'team', 'environment']
+        for attr in required_attrs:
+            if not getattr(self, attr):
+                raise ValueError(f"Missing required attribute: {attr}")
+
+class CoreService:
+    \"\"\"Core service with organization patterns.\"\"\"
+
+    def __init__(self, team: str, environment: str = "development"):
+        self.config = ServiceConfig(
+            name="${PROJECT_NAME}",
+            team=team,
+            environment=environment
+        )
+        self.config.validate()
+        
+        self.logger = logging.getLogger(__name__)
+        self.logger = logging.LoggerAdapter(self.logger, {'team': team})
+        self.metrics = MetricsCollector(team=team)
+        self.security = SecurityManager()
+
+    def initialize_development(self):
+        \"\"\"Initialize development environment.\"\"\"
+        self.logger.info("Initializing development environment")
+        
+        # Setup development-specific configurations
+        self._setup_logging()
+        self._setup_metrics()
+        
+        self.logger.info("Development environment initialized")
+
+    def _setup_logging(self):
+        \"\"\"Setup organization-standard logging.\"\"\"
+        # Organization logging configuration
+        pass
+
+    def _setup_metrics(self):
+        \"\"\"Setup organization metrics collection.\"\"\"
+        self.metrics.initialize()
+
+    def health_check(self) -> Dict[str, Any]:
+        \"\"\"Organization-standard health check.\"\"\"
+        return {
+            "status": "healthy",
+            "service": self.config.name,
+            "team": self.config.team,
+            "environment": self.config.environment,
+            "version": self.config.version
+        }
+PY
+
+  services/data.py <<PY
+\"\"\"Data services with organization standards.\"\"\"
+
+import logging
+from typing import List, Optional, Dict, Any
+from datetime import datetime
+
+class DataService:
+    \"\"\"Data service following organization patterns.\"\"\"
+
+    def __init__(self, team: str):
+        self.team = team
+        self.logger = logging.getLogger(__name__)
+        self.logger = logging.LoggerAdapter(self.logger, {'team': team})
+
+    def get_team_data(self, filters: Optional[Dict] = None) -> List[Dict]:
+        \"\"\"Get team data with organization access patterns.\"\"\"
+        self.logger.info(f"Fetching data for team: {self.team}")
+        
+        # Organization data access logic
+        return [
+            {
+                "id": 1,
+                "team": self.team,
+                "created_at": datetime.now().isoformat(),
+                "data": "sample data"
+            }
+        ]
+
+    def validate_data_access(self, user_team: str) -> bool:
+        \"\"\"Validate data access based on organization policies.\"\"\"
+        # Organization access control logic
+        allowed_teams = ["${TEAM}", "platform-engineering", "data-team"]
+        return user_team in allowed_teams
+PY
+
+  models/__init__.py
+  models/base.py <<PY
+\"\"\"Base models with organization standards.\"\"\"
+
+from typing import Any, Dict
+from datetime import datetime
+from pydantic import BaseModel as PydanticBaseModel
+
+class BaseModel(PydanticBaseModel):
+    \"\"\"Base model with organization standards.\"\"\"
+    
+    class Config:
+        \"\"\"Organization model configuration.\"\"\"
+        arbitrary_types_allowed = True
+        validate_assignment = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+    def to_dict(self) -> Dict[str, Any]:
+        \"\"\"Convert to dictionary with organization standards.\"\"\"
+        return self.dict()
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]):
+        \"\"\"Create from dictionary with organization standards.\"\"\"
+        return cls(**data)
+PY
+
+  models/user.py <<PY
+\"\"\"User model with organization structure.\"\"\"
+
+from typing import Optional
+from datetime import datetime
+from .base import BaseModel
+
+class User(BaseModel):
+    \"\"\"Organization user model.\"\"\"
+    
+    id: int
+    email: str
+    name: str
+    team: str
+    role: str = "member"
+    is_active: bool = True
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    def is_team_member(self, team: str) -> bool:
+        \"\"\"Check if user belongs to specified team.\"\"\"
+        return self.team == team
+
+    def can_access_project(self, project_team: str) -> bool:
+        \"\"\"Check if user can access project based on organization rules.\"\"\"
+        # Organization access rules
+        if self.role == "admin":
+            return True
+        return self.team == project_team
+PY
+
+  utils/__init__.py
+  utils/monitoring.py <<PY
+\"\"\"Monitoring utilities for organization standards.\"\"\"
+
+import time
+from typing import Dict, Any
+from functools import wraps
+
+class MetricsCollector:
+    \"\"\"Organization metrics collector.\"\"\"
+
+    def __init__(self, team: str):
+        self.team = team
+        self.metrics: Dict[str, Any] = {}
+
+    def initialize(self):
+        \"\"\"Initialize metrics collection.\"\"\"
+        self.metrics = {
+            "team": self.team,
+            "start_time": time.time(),
+            "request_count": 0,
+            "error_count": 0
+        }
+
+    def increment_counter(self, metric: str, value: int = 1):
+        \"\"\"Increment counter metric.\"\"\"
+        self.metrics[metric] = self.metrics.get(metric, 0) + value
+
+    def record_timing(self, operation: str, duration: float):
+        \"\"\"Record timing metric.\"\"\"
+        timing_key = f"{operation}_timing"
+        self.metrics[timing_key] = duration
+
+def track_operation(operation_name: str):
+    \"\"\"Decorator to track operation metrics.\"\"\"
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            start_time = time.time()
+            try:
+                result = func(*args, **kwargs)
+                duration = time.time() - start_time
+                
+                # In a real implementation, this would send to metrics system
+                print(f"[METRICS] {operation_name} completed in {duration:.3f}s")
+                
+                return result
+            except Exception as e:
+                duration = time.time() - start_time
+                print(f"[METRICS] {operation_name} failed after {duration:.3f}s: {e}")
+                raise
+        return wrapper
+    return decorator
+PY
+
+  utils/security.py <<PY
+\"\"\"Security utilities for organization standards.\"\"\"
+
+import hashlib
+import secrets
+from typing import Optional
+
+class SecurityManager:
+    \"\"\"Organization security manager.\"\"\"
+
+    def __init__(self):
+        self.secret_key = secrets.token_urlsafe(32)
+
+    def hash_data(self, data: str) -> str:
+        \"\"\"Hash data using organization standards.\"\"\"
+        return hashlib.sha256(data.encode()).hexdigest()
+
+    def validate_access(self, user_team: str, resource_team: str) -> bool:
+        \"\"\"Validate access based on organization policies.\"\"\"
+        # Organization access control logic
+        if user_team == resource_team:
+            return True
+        # Cross-team access rules
+        allowed_cross_teams = {
+            "platform-engineering": ["all"],
+            "security-team": ["all"]
+        }
+        return resource_team in allowed_cross_teams.get(user_team, [])
+PY
+
+  utils/validation.py <<PY
+\"\"\"Validation utilities for organization standards.\"\"\"
+
+import re
+from typing import Any, Dict, List
+
+class OrganizationValidator:
+    \"\"\"Organization data validator.\"\"\"
+
+    @staticmethod
+    def validate_email(email: str) -> bool:
+        \"\"\"Validate email against organization standards.\"\"\"
+        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$'
+        return bool(re.match(pattern, email))
+
+    @staticmethod
+    def validate_team_name(team: str) -> bool:
+        \"\"\"Validate team name against organization conventions.\"\"\"
+        # Organization team naming conventions
+        valid_pattern = r'^[a-z0-9-]+$'
+        return bool(re.match(valid_pattern, team)) and len(team) <= 50
+
+    @staticmethod
+    def validate_project_data(data: Dict[str, Any]) -> List[str]:
+        \"\"\"Validate project data against organization standards.\"\"\"
+        errors = []
+        
+        required_fields = ['name', 'team', 'description']
+        for field in required_fields:
+            if field not in data or not data[field]:
+                errors.append(f"Missing required field: {field}")
+                
+        if 'team' in data and not OrganizationValidator.validate_team_name(data['team']):
+            errors.append("Invalid team name format")
+            
+        return errors
+PY
+
+# ==================== ORGANIZATION TESTING ====================
+/tests
+  __init__.py
+
+  # Unit tests
+  test_services.py <<PY
+\"\"\"Tests for organization services.\"\"\"
+
+import pytest
+from src.services.core import CoreService, ServiceConfig
+from src.services.data import DataService
+
+class TestCoreService:
+    \"\"\"Test core service functionality.\"\"\"
+
+    def test_service_initialization(self):
+        \"\"\"Test service initialization with organization standards.\"\"\"
+        service = CoreService(team="${TEAM}")
+        
+        assert service.config.team == "${TEAM}"
+        assert service.config.name == "${PROJECT_NAME}"
+        assert service.config.environment == "development"
+
+    def test_config_validation(self):
+        \"\"\"Test configuration validation.\"\"\"
+        config = ServiceConfig(
+            name="test-service",
+            team="${TEAM}",
+            environment="testing"
+        )
+        
+        config.validate()  # Should not raise
+
+    def test_config_validation_failure(self):
+        \"\"\"Test configuration validation failure.\"\"\"
+        config = ServiceConfig(name="", team="", environment="")
+        
+        with pytest.raises(ValueError):
+            config.validate()
+
+class TestDataService:
+    \"\"\"Test data service functionality.\"\"\"
+
+    def test_team_data_access(self):
+        \"\"\"Test team data access patterns.\"\"\"
+        service = DataService(team="${TEAM}")
+        data = service.get_team_data()
+        
+        assert len(data) > 0
+        assert data[0]['team'] == "${TEAM}"
+
+    def test_data_access_validation(self):
+        \"\"\"Test data access validation.\"\"\"
+        service = DataService(team="${TEAM}")
+        
+        assert service.validate_data_access("${TEAM}") is True
+        assert service.validate_data_access("unauthorized-team") is False
+PY
+
+  test_models.py <<PY
+\"\"\"Tests for organization models.\"\"\"
+
+import pytest
+from datetime import datetime
+from src.models.user import User
+
+class TestUserModel:
+    \"\"\"Test user model functionality.\"\"\"
+
+    def test_user_creation(self):
+        \"\"\"Test user creation with organization structure.\"\"\"
+        user = User(
+            id=1,
+            email="user@org.com",
+            name="Test User",
+            team="${TEAM}",
+            created_at=datetime.now()
+        )
+        
+        assert user.email == "user@org.com"
+        assert user.team == "${TEAM}"
+        assert user.role == "member"
+        assert user.is_active is True
+
+    def test_team_membership(self):
+        \"\"\"Test team membership checks.\"\"\"
+        user = User(
+            id=1,
+            email="user@org.com", 
+            name="Test User",
+            team="${TEAM}",
+            created_at=datetime.now()
+        )
+        
+        assert user.is_team_member("${TEAM}") is True
+        assert user.is_team_member("other-team") is False
+
+    def test_project_access(self):
+        \"\"\"Test project access rules.\"\"\"
+        user = User(
+            id=1,
+            email="user@org.com",
+            name="Test User", 
+            team="${TEAM}",
+            role="member",
+            created_at=datetime.now()
+        )
+        
+        admin_user = User(
+            id=2,
+            email="admin@org.com",
+            name="Admin User",
+            team="platform-engineering", 
+            role="admin",
+            created_at=datetime.now()
+        )
+        
+        assert user.can_access_project("${TEAM}") is True
+        assert user.can_access_project("other-team") is False
+        assert admin_user.can_access_project("any-team") is True
+PY
+
+  test_utils.py <<PY
+\"\"\"Tests for organization utilities.\"\"\"
+
+import pytest
+from src.utils.validation import OrganizationValidator
+from src.utils.security import SecurityManager
+
+class TestOrganizationValidator:
+    \"\"\"Test organization validator.\"\"\"
+
+    def test_email_validation(self):
+        \"\"\"Test email validation.\"\"\"
+        assert OrganizationValidator.validate_email("user@org.com") is True
+        assert OrganizationValidator.validate_email("invalid-email") is False
+
+    def test_team_name_validation(self):
+        \"\"\"Test team name validation.\"\"\"
+        assert OrganizationValidator.validate_team_name("engineering-team") is True
+        assert OrganizationValidator.validate_team_name("Engineering Team") is False
+        assert OrganizationValidator.validate_team_name("a" * 51) is False
+
+    def test_project_data_validation(self):
+        \"\"\"Test project data validation.\"\"\"
+        valid_data = {
+            "name": "test-project",
+            "team": "engineering-team",
+            "description": "A test project"
+        }
+        
+        invalid_data = {
+            "name": "",
+            "team": "invalid team!",
+            "description": ""
+        }
+        
+        assert len(OrganizationValidator.validate_project_data(valid_data)) == 0
+        assert len(OrganizationValidator.validate_project_data(invalid_data)) > 0
+
+class TestSecurityManager:
+    \"\"\"Test security manager.\"\"\"
+
+    def test_access_validation(self):
+        \"\"\"Test access validation.\"\"\"
+        security = SecurityManager()
+        
+        assert security.validate_access("engineering-team", "engineering-team") is True
+        assert security.validate_access("engineering-team", "other-team") is False
+PY
+
+  # Integration tests
+  integration/__init__.py
+  integration/test_workflows.py <<PY
+\"\"\"Integration tests for organization workflows.\"\"\"
+
+import pytest
+from src.services.core import CoreService
+from src.services.data import DataService
+
+class TestOrganizationWorkflows:
+    \"\"\"Test organization workflows.\"\"\"
+
+    @pytest.mark.integration
+    @pytest.mark.slow
+    def test_complete_workflow(self):
+        \"\"\"Test complete organization workflow.\"\"\"
+        # Initialize core service
+        core_service = CoreService(team="${TEAM}")
+        core_service.initialize_development()
+        
+        # Initialize data service
+        data_service = DataService(team="${TEAM}")
+        data = data_service.get_team_data()
+        
+        # Verify workflow results
+        assert core_service.config.team == "${TEAM}"
+        assert len(data) > 0
+        assert data[0]['team'] == "${TEAM}"
+        
+        # Health check
+        health = core_service.health_check()
+        assert health['status'] == 'healthy'
+        assert health['team'] == "${TEAM}"
+PY
+
+  conftest.py <<PY
+\"\"\"Organization test configuration.\"\"\"
+
+import pytest
+import logging
+from typing import Generator
+
+@pytest.fixture(autouse=True)
+def setup_organization_testing():
+    \"\"\"Setup organization testing environment.\"\"\"
+    # Set organization test environment
+    import os
+    os.environ["ORGANIZATION"] = "${ORGANIZATION}"
+    os.environ["TEAM"] = "${TEAM}"
+    os.environ["ENVIRONMENT"] = "testing"
+    
+    # Configure test logging
+    logging.basicConfig(level=logging.WARNING)
+    
+    yield
+    
+    # Cleanup
+    for env_var in ["ORGANIZATION", "TEAM", "ENVIRONMENT"]:
+        if env_var in os.environ:
+            del os.environ[env_var]
+PY
+
+# ==================== ORGANIZATION SCRIPTS ====================
+/scripts
+  setup-org.sh <<SH
+#!/usr/bin/env bash
+# Organization Project Setup Script
+
+echo "🏢 ${ORGANIZATION} - Project Setup"
+echo "==================================="
+
+# Organization requirements check
+echo "🔍 Checking organization requirements..."
+
+# Check for organization tools
+command -v docker >/dev/null 2>&1 || echo "⚠️  Docker not found (required for org)"
+command -v kubectl >/dev/null 2>&1 || echo "⚠️  kubectl not found (required for org)"
+command -v terraform >/dev/null 2>&1 || echo "⚠️  Terraform not found (required for org)"
+
+# Setup virtual environment
+echo "🐍 Setting up Python environment..."
+python -m venv .venv
+source .venv/bin/activate
+
+# Install with organization dependencies
+echo "📦 Installing organization dependencies..."
+pip install -e ".[dev,org]"
+
+# Organization-specific setup
+echo "⚙️  Running organization setup..."
+python -c "
+from src.services.core import CoreService
+service = CoreService(team='${TEAM}', environment='development')
+service.initialize_development()
+print('✅ Organization service initialized')
+"
+
+echo "🎯 Organization project setup complete!"
+echo ""
+echo "📋 Next Steps:"
+echo "   1. Update config/organization.yaml with your settings"
+echo "   2. Review .github/ workflows for CI/CD"
+echo "   3. Join Slack channel: ${SLACK_CHANNEL}"
+echo "   4. Contact team: ${MAINTAINER_TEAM}"
+SH
+  @chmod scripts/setup-org.sh +x
+
+  test-org.sh <<SH
+#!/usr/bin/env bash
+# Organization Test Suite
+
+echo "🧪 ${ORGANIZATION} Test Suite"
+echo "============================="
+
+# Run unit tests
+echo "📝 Running unit tests..."
+python -m pytest tests/ -v --cov=src --cov-report=term-missing
+
+# Run integration tests (slow)
+echo "🔗 Running integration tests..."
+python -m pytest tests/integration/ -v -m integration
+
+# Organization-specific checks
+echo "🏢 Organization standards check..."
+python -m flake8 src/ --max-complexity=12
+python -m mypy src/ --strict
+python -m black --check src/ tests/
+
+# Security scan
+echo "🔒 Organization security scan..."
+python -m bandit -r src/ -f json -o reports/security-scan.json
+
+echo "✅ Organization test suite completed!"
+SH
+  @chmod scripts/test-org.sh +x
+
+  deploy-org.sh <<SH
+#!/usr/bin/env bash
+# Organization Deployment Script
+
+ENVIRONMENT=${1:-staging}
+TEAM="${TEAM}"
+
+echo "🚀 ${ORGANIZATION} Deployment"
+echo "============================="
+
+# Validate environment
+if [[ ! "$ENVIRONMENT" =~ ^(staging|production)$ ]]; then
+    echo "❌ Invalid environment: $ENVIRONMENT"
+    echo "💡 Use: staging or production"
+    exit 1
+fi
+
+echo "👥 Deployment Team: $TEAM"
+echo "🌍 Environment: $ENVIRONMENT"
+
+# Pre-deployment checks
+echo "🔍 Pre-deployment checks..."
+./scripts/test-org.sh
+
+# Organization deployment process
+echo "📦 Deploying to $ENVIRONMENT..."
+
+case $ENVIRONMENT in
+    staging)
+        echo "🔄 Deploying to staging environment..."
+        kubectl apply -f deploy/kubernetes/staging/
+        ;;
+    production)
+        echo "🎯 Deploying to production environment..."
+        # Additional production checks
+        echo "🔒 Running production security scan..."
+        python -m bandit -r src/ -ll
+        kubectl apply -f deploy/kubernetes/production/
+        ;;
+esac
+
+# Post-deployment verification
+echo "✅ Verifying deployment..."
+kubectl get deployments -l team=$TEAM
+
+echo "🎉 Deployment to $ENVIRONMENT completed successfully!"
+echo "📊 Monitor in organization dashboard"
+SH
+  @chmod scripts/deploy-org.sh +x
+
+# ==================== ORGANIZATION CONFIGURATION ====================
+/config
+  organization.yaml <<YAML
+# Organization Configuration
+organization: "${ORGANIZATION}"
+team: "${TEAM}"
+project: "${PROJECT_NAME}"
+
+# Team Settings
+slack_channel: "${SLACK_CHANNEL}"
+maintainer_team: "${MAINTAINER_TEAM}"
+code_owners: "${CODE_OWNERS}"
+
+# Development Standards
+python_version: "${PYTHON_VERSION}"
+code_style: "black"
+testing_framework: "pytest"
+logging_format: "structured"
+
+# Deployment
+environments:
+  - development
+  - staging  
+  - production
+
+kubernetes:
+  namespace: "${TEAM}"
+  team_label: "${TEAM}"
+
+compliance:
+  security_scan: true
+  code_review: true
+  automated_testing: true
+YAML
+
+  development.yaml <<YAML
+# Development Configuration
+environment: development
+debug: true
+log_level: DEBUG
+
+database:
+  host: localhost
+  port: 5432
+  name: ${PROJECT_NAME}_dev
+
+features:
+  monitoring: true
+  security: false
+  caching: false
+YAML
+
+# ==================== ORGANIZATION DEPLOYMENT ====================
+/deploy
+  /kubernetes
+    /staging
+      deployment.yaml <<YAML
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${PROJECT_NAME}
+  namespace: ${TEAM}
+  labels:
+    app: ${PROJECT_NAME}
+    team: ${TEAM}
+    environment: staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ${PROJECT_NAME}
+  template:
+    metadata:
+      labels:
+        app: ${PROJECT_NAME}
+        team: ${TEAM}
+    spec:
+      containers:
+      - name: ${PROJECT_NAME}
+        image: ${ORGANIZATION}/${PROJECT_NAME}:staging
+        ports:
+        - containerPort: 8000
+        env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: TEAM
+          value: "${TEAM}"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+YAML
+
+    /production
+      deployment.yaml <<YAML
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${PROJECT_NAME}
+  namespace: ${TEAM}
+  labels:
+    app: ${PROJECT_NAME}
+    team: ${TEAM}
+    environment: production
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ${PROJECT_NAME}
+  template:
+    metadata:
+      labels:
+        app: ${PROJECT_NAME}
+        team: ${TEAM}
+    spec:
+      containers:
+      - name: ${PROJECT_NAME}
+        image: ${ORGANIZATION}/${PROJECT_NAME}:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: TEAM
+          value: "${TEAM}"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+YAML
+
+# ==================== ORGANIZATION GITHUB ====================
+/.github
+  /workflows
+    organization-ci.yml <<YAML
+name: Organization CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10, 3.11]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+    
+    - name: Run organization tests
+      run: ./scripts/test-org.sh
+    
+    - name: Upload coverage
+      uses: codecov/codecov-action@v3
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Security scan
+      run: |
+        pip install bandit safety
+        bandit -r src/ -f json -o security-report.json
+        safety check --json --output safety-report.json
+    
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-reports
+        path: |
+          security-report.json
+          safety-report.json
+YAML
+
+  CODEOWNERS <<TXT
+# Organization Code Owners
+* ${CODE_OWNERS}
+
+# Team-specific ownership
+/src/services/ @org/platform-engineering
+/deploy/ @org/devops-team
+/.github/ @org/platform-engineering
+TXT
+
+  pull_request_template.md <<MD
+# Organization Pull Request
+
+## Description
+<!-- Describe your changes -->
+
+## Team
+- **Team:** ${TEAM}
+- **JIRA:** ${JIRA_PROJECT}-<!-- issue-number -->
+
+## Type of Change
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
+- [ ] Documentation update
+
+## Checklist
+- [ ] Code follows organization standards
+- [ ] Tests added/updated
+- [ ] Documentation updated
+- [ ] Security considerations addressed
+- [ ] CI/CD checks passing
+
+## Deployment Notes
+<!-- Any special deployment instructions -->
+
+## Screenshots
+<!-- If UI changes -->
+
+/label ~"${TEAM}"
+/cc ${CODE_OWNERS}
+MD
+
+# ==================== ORGANIZATION COMPLIANCE ====================
+/compliance
+  security-policy.md <<MD
+# Organization Security Policy
+
+## Overview
+**Organization:** ${ORGANIZATION}
+**Team:** ${TEAM}
+**Project:** ${PROJECT_NAME}
+
+## Security Requirements
+
+### Code Security
+- [ ] All code must pass SAST scanning
+- [ ] Dependencies must be vulnerability-free
+- [ ] Secrets must not be committed
+- [ ] Input validation required
+
+### Access Control
+- [ ] Team-based access enforcement
+- [ ] Principle of least privilege
+- [ ] Regular access reviews
+
+### Monitoring
+- [ ] Security event logging
+- [ ] Anomaly detection
+- [ ] Incident response plan
+
+## Compliance
+This project follows organization security standards and undergoes regular security reviews.
+
+## Contact
+**Security Team:** ${MAINTAINER_TEAM}
+**Slack:** ${SLACK_CHANNEL}
+MD
+
+# ==================== ORGANIZATION DOCUMENTATION ====================
+/docs
+  README.md <<MD
+# ${PROJECT_NAME}
+
+> **Organization Edition**
+
+${DESCRIPTION}
+
+## 🏢 Organization Information
+
+- **Organization:** ${ORGANIZATION}
+- **Team:** ${TEAM}
+- **Maintainers:** ${MAINTAINER_TEAM}
+- **Slack:** ${SLACK_CHANNEL}
+
+## 🚀 Quick Start
+
+\`\`\`bash
+# Generate organization project
+lrc schema_org_example.lrc -o ./${PROJECT_NAME}
+cd ${PROJECT_NAME}
+
+# Setup organization environment
+./scripts/setup-org.sh
+
+# Run organization tests
+./scripts/test-org.sh
+\`\`\`
+
+## 📁 Organization Structure
+
+\`\`\`
+${PROJECT_NAME}/
+├── src/           # Source code with org standards
+│   ├── services/  # Organization services
+│   ├── models/    # Data models
+│   └── utils/     # Organization utilities
+├── tests/         # Comprehensive test suite
+├── deploy/        # Deployment configurations
+├── config/        # Organization settings
+├── .github/       # CI/CD workflows
+├── compliance/    # Security & compliance
+└── scripts/       # Organization scripts
+\`\`\`
+
+## 🔧 Organization Features
+
+- **Team-based architecture** with proper separation
+- **Organization standards** for code quality
+- **Security compliance** with policies and scanning
+- **CI/CD workflows** with organization checks
+- **Monitoring ready** with team context
+- **Deployment configurations** for multiple environments
+
+## 👥 Team Collaboration
+
+### Development Workflow
+\`\`\`bash
+# Start development
+${PROJECT_NAME} dev
+
+# Run organization tests
+./scripts/test-org.sh
+
+# Deploy to staging
+./scripts/deploy-org.sh staging
+\`\`\`
+
+### Code Review
+- All changes require code review
+- Follow organization coding standards
+- Include appropriate tests
+- Update documentation as needed
+
+## 🔒 Security & Compliance
+
+### Security Practices
+- Regular security scanning
+- Dependency vulnerability monitoring
+- Access control enforcement
+- Security event logging
+
+### Compliance Requirements
+- Follow organization security policy
+- Regular security reviews
+- Incident response readiness
+- Data protection compliance
+
+## 📊 Monitoring & Operations
+
+### Health Checks
+\`\`\`bash
+# Service health
+${PROJECT_NAME} health
+
+# Team-specific metrics
+${PROJECT_NAME} metrics --team ${TEAM}
+\`\`\`
+
+### Deployment
+\`\`\`bash
+# Staging deployment
+./scripts/deploy-org.sh staging
+
+# Production deployment  
+./scripts/deploy-org.sh production
+\`\`\`
+
+## 🤝 Contributing
+
+### Organization Standards
+1. Follow team coding conventions
+2. Include comprehensive tests
+3. Update documentation
+4. Pass security scans
+5. Get appropriate reviews
+
+### Communication
+- **Slack:** ${SLACK_CHANNEL}
+- **Email:** ${MAINTAINER_TEAM}
+- **Code Owners:** ${CODE_OWNERS}
+
+## 📄 License
+
+${LICENSE} License - see [LICENSE](../LICENSE) for details.
+
+---
+
+*Built for ${ORGANIZATION} by ${TEAM} 🏢*
+MD
+
+  TEAM_GUIDE.md <<MD
+# Team Development Guide
+
+## 🎯 Team Standards
+
+### Code Organization
+- Use team-specific namespaces
+- Follow organization naming conventions
+- Implement proper error handling
+- Include comprehensive logging
+
+### Testing Strategy
+- Unit tests for all business logic
+- Integration tests for workflows
+- Performance tests for critical paths
+- Security tests for data access
+
+### Deployment Process
+1. **Development** - Local testing
+2. **Staging** - Team validation
+3. **Production** - Organization deployment
+
+## 🔧 Team Tools
+
+### Development
+\`\`\`bash
+# Team development setup
+./scripts/setup-org.sh
+
+# Team-specific testing
+./scripts/test-org.sh
+
+# Team deployment
+./scripts/deploy-org.sh staging
+\`\`\`
+
+### Monitoring
+- Team-specific dashboards
+- Custom metrics collection
+- Alerting for team services
+- Performance monitoring
+
+## 👥 Collaboration
+
+### Code Review
+- Review within 24 hours
+- Provide constructive feedback
+- Verify organization standards
+- Check security considerations
+
+### Communication
+- Daily standups in ${SLACK_CHANNEL}
+- Weekly team meetings
+- Monthly organization reviews
+- Incident response coordination
+
+## 🚀 Best Practices
+
+### Development
+- Small, focused PRs
+- Comprehensive testing
+- Clear documentation
+- Security-first approach
+
+### Operations
+- Monitor team services
+- Respond to incidents
+- Regular performance reviews
+- Capacity planning
+
+## 📞 Support
+
+### Team Support
+- **Slack:** ${SLACK_CHANNEL}
+- **Email:** ${MAINTAINER_TEAM}
+- **On-call:** Team rotation
+
+### Organization Support
+- Platform engineering team
+- Security team
+- DevOps team
+MD
+
+# ==================== ORGANIZATION PROJECT FILES ====================
+.gitignore <<GIT
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.mypy_cache/
+.pytest_cache/
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Organization
+.coverage
+htmlcov/
+reports/
+secrets.txt
+*.local.*
+.env.local
+GIT
+
+LICENSE <<TXT
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+[Full Apache 2.0 License Text - Same as enterprise template]
+
+END OF TERMS AND CONDITIONS
+TXT
+
+pyproject.toml <<TOML
+[project]
+name = "${PROJECT_NAME}"
+version = "1.0.0"
+description = "${DESCRIPTION}"
+readme = "README.md"
+requires-python = ">=${PYTHON_VERSION}"
+authors = [
+    { name = "${ORGANIZATION}", email = "${MAINTAINER_TEAM}" }
+]
+keywords = ["organization", "team", "enterprise", "collaboration"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+dependencies = [
+    "pydantic>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+    "bandit>=1.7.0",
+]
+org = [
+    "requests>=2.31.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+${PROJECT_NAME} = "src.cli:main"
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "--verbose --strict-markers --strict-config"
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "slow: slow tests",
+    "integration: integration tests",
+]
+TOML
+
+README.md <<MD
+# ${PROJECT_NAME}
+
+${DESCRIPTION}
+
+## 🏢 Organization Ready
+
+This template is designed for teams and organizations that need:
+- **Structured collaboration** with clear team boundaries
+- **Organization standards** for code quality and security
+- **Scalable architecture** that grows with your team
+- **Compliance ready** with security policies and procedures
+
+## 🚀 Organization Quick Start
+
+\`\`\`bash
+# Generate organization project
+lrc schema_org_example.lrc -o ./${PROJECT_NAME}
+cd ${PROJECT_NAME}
+
+# Setup organization environment
+./scripts/setup-org.sh
+
+# Verify organization standards
+./scripts/test-org.sh
+\`\`\`
+
+## 📁 Organization Structure
+
+\`\`\`
+${PROJECT_NAME}/
+├── src/           # Team-based source code
+├── tests/         # Comprehensive testing
+├── deploy/        # Multi-environment deployment
+├── config/        # Organization configuration
+├── .github/       # CI/CD with org checks
+├── compliance/    # Security & policies
+├── scripts/       # Organization workflows
+└── docs/          # Team documentation
+\`\`\`
+
+## 🔧 Built for Teams
+
+- **Team-based services** with proper separation
+- **Organization utilities** for common patterns
+- **Security compliance** with built-in scanning
+- **CI/CD workflows** with organization gates
+- **Monitoring ready** with team context
+
+## 👥 Team Collaboration
+
+### Development Workflow
+\`\`\`bash
+# Team development
+${PROJECT_NAME} dev --team ${TEAM}
+
+# Organization testing
+./scripts/test-org.sh
+
+# Team deployment
+./scripts/deploy-org.sh staging
+\`\`\`
+
+### Code Review & Standards
+- All changes require team review
+- Follow organization coding standards
+- Include comprehensive tests
+- Pass security scans
+
+## 📄 License
+
+${LICENSE} License - see [LICENSE](LICENSE) for details.
+
+---
+
+*Built for ${ORGANIZATION} teams to collaborate effectively 🏢*
+MD
+
+# ==================== END OF ORGANIZATION SCHEMA ====================
+# This schema is designed for teams and organizations
+# Generate with: lrc schema_org_example.lrc -o ./org-project
+# Follow organization standards and team collaboration practices
+
+# Built for scalable, maintainable team development! 🏢
